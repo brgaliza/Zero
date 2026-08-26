@@ -116,7 +116,7 @@ templates/
 tests/
 ~~~
 
-packages/cli é o único pacote publicável. Seu build produz um executável único em dist, incluindo manifest, scaffold e todas as dependências JavaScript de runtime permitidas. O pacote publicado não declara dependencies nem scripts de lifecycle; a lista files inclui explicitamente dist, bin, templates e schemas. Assim, instalação global não resolve árvore transitiva em tempo de instalação. package-lock permanece versionado para reproduzir apenas o ambiente de build. Direção: cli depende de manifest e scaffold. Manifest não conhece terminal, filesystem, processos ou Docker. Scaffold recebe somente modelos já validados. Um pacote runtime/core só nasce na Sprint 2, quando houver responsabilidade concreta de Docker e processos.
+packages/cli é o único pacote publicável. Seu build produz um executável ESM único em dist, incluindo manifest, scaffold e todas as dependências JavaScript de runtime permitidas. O pacote publicado não declara dependencies nem scripts de lifecycle; sua publicação é configurada com acesso restricted e a lista files inclui explicitamente dist, bin, templates e schemas. Assim, instalação global não resolve árvore transitiva em tempo de instalação. package-lock permanece versionado para reproduzir apenas o ambiente de build. Direção: cli depende de manifest e scaffold. Manifest não conhece terminal, filesystem, processos ou Docker. Scaffold recebe somente modelos já validados. Um pacote runtime/core só nasce na Sprint 2, quando houver responsabilidade concreta de Docker e processos.
 
 Modelos:
 
@@ -164,7 +164,7 @@ O Zero evita acidentes e configurações equivocadas/maliciosas dentro da conta 
 
 Criar workspace, TypeScript, lint, formatter, testes e os três pacotes. Configurar bin zero, versão, ajuda mínima e empacotamento.
 
-**Aceite:** npm pack contém somente bin e dist esperados; seu package.json não tem dependencies ou lifecycle scripts; instalado em pasta temporária com scripts desabilitados, executa zero --version e zero --help. Templates e schemas entram no gate de empacotamento no commit 4.
+**Aceite:** npm pack contém somente bin e dist esperados; seu package.json não tem dependencies ou lifecycle scripts; instalado em pasta temporária com scripts desabilitados, executa zero --version e zero --help. npm publish --dry-run mantém o bin e resolve acesso restricted, sem publicar. Templates e schemas entram no gate de empacotamento no commit 4.
 
 ### 2. Modelos, schemas e parser
 

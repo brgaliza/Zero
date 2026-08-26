@@ -1,0 +1,22 @@
+{
+  "name": "@brunogaliza/zero",
+  "version": "0.1.0",
+  "description": "Fundador guiado de projetos web.",
+  "private": false,
+  "type": "module",
+  "bin": {
+    "zero": "dist/main.js"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "schemas"
+  ],
+  "publishConfig": {
+    "access": "restricted",
+    "registry": "https://registry.npmjs.org"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}
