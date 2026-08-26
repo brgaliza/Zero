@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zero.local/schemas/project-manifest.v1.schema.json",
+  "title": "Zero ProjectManifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "project",
+    "template",
+    "runtime",
+    "database",
+    "profile",
+    "services",
+    "capabilities",
+    "health"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "slug"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 280 },
+        "slug": { "type": "string", "pattern": "^[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?$" }
+      }
+    },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": { "id": { "const": "next-fullstack" }, "version": { "const": "1.0.0" } }
+    },
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodeMajor", "packageManager"],
+      "properties": { "nodeMajor": { "const": 24 }, "packageManager": { "const": "npm" } }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["engine", "majorVersion", "orm"],
+      "properties": {
+        "engine": { "const": "postgres" },
+        "majorVersion": { "const": 17 },
+        "orm": { "const": "prisma" }
+      }
+    },
+    "profile": { "const": "essential" },
+    "services": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["redis", "storage", "email"],
+      "properties": {
+        "redis": { "const": false },
+        "storage": { "const": false },
+        "email": { "const": false }
+      }
+    },
+    "capabilities": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auth"],
+      "properties": { "auth": { "const": "none" } }
+    },
+    "health": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": { "path": { "const": "/api/health" } }
+    }
+  }
+}

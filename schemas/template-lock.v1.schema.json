@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zero.local/schemas/template-lock.v1.schema.json",
+  "title": "Zero TemplateLock v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "template", "cliVersion"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": { "id": { "const": "next-fullstack" }, "version": { "const": "1.0.0" } }
+    },
+    "cliVersion": { "type": "string", "minLength": 1, "maxLength": 64 }
+  }
+}
