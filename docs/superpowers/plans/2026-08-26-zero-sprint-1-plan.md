@@ -72,7 +72,7 @@ Ctrl+C antes da confirmação não muda estado. Diretórios existentes, inclusiv
 
 Contrato único:
 
-~~~yaml
+```yaml
 schemaVersion: 1
 project:
   name: Minha Agenda
@@ -85,7 +85,7 @@ initialization:
   git: false
   github:
     createPrivateRepository: false
-~~~
+```
 
 Este é o subconjunto transitório e compatível de NewProjectConfig v1: todos os campos acima são obrigatórios. Qualquer valor true em initialization é rejeitado como indisponível nesta sprint; a Sprint 1 nunca interpreta ausência como autorização para mutar. O perfil complete é rejeitado como indisponível. Caminho relativo é resolvido contra o arquivo de configuração; somente o prefixo ~/ é expandido. Não há expansão de variáveis, glob ou shell.
 
@@ -93,19 +93,19 @@ zero new --config sem --yes e zero new --yes sem --config são erros de uso ante
 
 No modo --config ... --yes, stdout contém exatamente um envelope JSON versionado, inclusive em falhas; stderr contém apenas diagnóstico humano opcional. O envelope é { schemaVersion, ok, exitCode, code, message, nextAction, result? }, não contém secrets e usa subcódigos estáveis, como PREFLIGHT_NODE_UNSUPPORTED ou FILESYSTEM_WRITE_FAILED. Não há spinner, ANSI nem linhas extras em stdout. Códigos de saída:
 
-| Código | Significado |
-|---|---|
-| 0 | scaffold criado |
-| 2 | entrada, schema ou validação inválida |
-| 3 | pré-requisito ausente |
-| 4 | falha externa ou de filesystem |
-| 5 | conflito de destino ou condição insegura |
+| Código | Significado                              |
+| ------ | ---------------------------------------- |
+| 0      | scaffold criado                          |
+| 2      | entrada, schema ou validação inválida    |
+| 3      | pré-requisito ausente                    |
+| 4      | falha externa ou de filesystem           |
+| 5      | conflito de destino ou condição insegura |
 
 O modo interativo é exclusivamente humano; sua saída não é contrato de automação.
 
 ## 4. Arquitetura
 
-~~~text
+```text
 packages/
   cli/        comandos, prompts, renderização e códigos de saída
   manifest/   schemas, parsing seguro e modelos puros
@@ -114,7 +114,7 @@ templates/
   next-fullstack/
     essential/
 tests/
-~~~
+```
 
 packages/cli é o único pacote publicável. Seu build produz um executável ESM único em dist, incluindo manifest, scaffold e todas as dependências JavaScript de runtime permitidas. O pacote publicado não declara dependencies nem scripts de lifecycle; sua publicação é configurada com acesso restricted e a lista files inclui explicitamente dist, bin, templates e schemas. Assim, instalação global não resolve árvore transitiva em tempo de instalação. package-lock permanece versionado para reproduzir apenas o ambiente de build. Direção: cli depende de manifest e scaffold. Manifest não conhece terminal, filesystem, processos ou Docker. Scaffold recebe somente modelos já validados. Um pacote runtime/core só nasce na Sprint 2, quando houver responsabilidade concreta de Docker e processos.
 
@@ -132,7 +132,7 @@ O ProjectManifest v1 usa runtime.nodeMajor 24, PostgreSQL 17, Prisma, profile es
 ### Configuração e renderização
 
 - Parser YAML sem documentos múltiplos, tags customizadas, aliases, merge keys ou chaves duplicadas.
-- Rejeitar chaves desconhecidas, __proto__ e equivalentes, inputs grandes/profundos e tipos inesperados.
+- Rejeitar chaves desconhecidas, `__proto__` e equivalentes, inputs grandes/profundos e tipos inesperados.
 - Normalizar Unicode, limitar tamanho e rejeitar controles, ESC/ANSI e bidi em inputs.
 - Slug ASCII minúsculo, limitado e sem palavras reservadas.
 - Renderizar YAML, JSON, Markdown e TSX com serialização específica; nunca interpolação textual genérica.
@@ -140,12 +140,12 @@ O ProjectManifest v1 usa runtime.nodeMajor 24, PostgreSQL 17, Prisma, profile es
 ### Filesystem e template
 
 - Tratar config, destino e template copiado como não confiáveis.
-- Canonicalizar pai existente, criar destino exclusivamente e recusar destinos/symlinks existentes.
-- Materializar em staging temporário irmão, com nome aleatório criptograficamente forte e permissões privadas, sob o mesmo pai validado; renomear só depois de concluir.
+- Canonicalizar pai existente, criar destino exclusivamente e recusar destinos/symlinks existentes. Uma reserva exclusiva por destino protege execuções concorrentes do Zero e é removida ao final; uma reserva remanescente é relatada para inspeção manual.
+- Materializar em staging temporário irmão, com nome aleatório criptograficamente forte e permissões privadas, sob o mesmo pai validado; renomear só depois de concluir. O Node 24 no macOS não expõe um rename de diretório com `no-replace`; portanto a reserva e as revalidações protegem concorrência entre execuções do Zero, mas não prometem proteção contra outro ator que altere o diretório pai durante a publicação.
 - Provar para cada arquivo que o destino está sob o root canônico; não copiar symlinks, arquivos especiais ou paths absolutos.
 - Usar inventário estático de template; nenhum caminho vem de input.
 - Em falha ou SIGINT/SIGTERM, não publicar destino final parcial. Remover staging quando seguro; se não for possível, informar identificador não sensível e instrução de inspeção manual. Não sugerir retomada: zero new --resume ainda não existe.
-- Criação exclusiva, staging irmão e revalidações antes/depois da materialização são defesas para alterações acidentais e condições detectáveis. Elas não constituem sandbox contra ator que controla o diretório pai.
+- Criação exclusiva entre execuções do Zero, staging irmão e revalidações antes/depois da materialização são defesas para alterações acidentais e condições detectáveis. Elas não constituem sandbox nem uma primitiva atômica de `no-replace` contra outro ator que controla ou altera o diretório pai.
 
 ### Supply chain e subprocessos
 
@@ -170,7 +170,7 @@ Criar workspace, TypeScript, lint, formatter, testes e os três pacotes. Configu
 
 Implementar modelos, parser YAML restrito, validação semântica, normalização e erros por campo.
 
-**Aceite:** corpus de YAML malicioso/inválido, campos desconhecidos, chaves duplicadas, aliases, valores grandes, __proto__, slug/nome malicioso e manifesto incompatível falha antes de I/O.
+**Aceite:** corpus de YAML malicioso/inválido, campos desconhecidos, chaves duplicadas, aliases, valores grandes, `__proto__`, slug/nome malicioso e manifesto incompatível falha antes de I/O.
 
 ### 3. Caminhos e scaffold atômico
 
@@ -204,15 +204,15 @@ Executar regressão adversarial, teste de tarball e revisão independente de seg
 
 ## 7. Matriz mínima de testes
 
-| Área | Casos obrigatórios |
-|---|---|
-| Parser | YAML malformado, múltiplos documentos, chaves duplicadas/desconhecidas, aliases, proto pollution, tamanho/profundidade |
-| Entrada | descrição ausente, slug inválido, controles/ANSI/bidi, unicode e limites |
-| Caminho | home, relativo, espaço, unicode, existente, vazio, symlink, traversal, case collision e troca concorrente |
-| Scaffold | determinismo, staging/rename, arquivo fora do root, template alterado e falha de cópia |
-| CLI | confirmação, cancelamento, 80 colunas, sem cor, preflight, PT-BR, códigos e JSON |
-| Pacote | allowlist, npm pack, instalação limpa sem scripts, bin e templates |
-| Contrato | manifesto v1, lock, .gitignore, .env.example, docs e ausência de secrets |
+| Área     | Casos obrigatórios                                                                                                     |
+| -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Parser   | YAML malformado, múltiplos documentos, chaves duplicadas/desconhecidas, aliases, proto pollution, tamanho/profundidade |
+| Entrada  | descrição ausente, slug inválido, controles/ANSI/bidi, unicode e limites                                               |
+| Caminho  | home, relativo, espaço, unicode, existente, vazio, symlink, traversal, case collision e troca concorrente              |
+| Scaffold | determinismo, staging/rename, arquivo fora do root, template alterado e falha de cópia                                 |
+| CLI      | confirmação, cancelamento, 80 colunas, sem cor, preflight, PT-BR, códigos e JSON                                       |
+| Pacote   | allowlist, npm pack, instalação limpa sem scripts, bin e templates                                                     |
+| Contrato | manifesto v1, lock, .gitignore, .env.example, docs e ausência de secrets                                               |
 
 ## 8. Gates de saída
 
