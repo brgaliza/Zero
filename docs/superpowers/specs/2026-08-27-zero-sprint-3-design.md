@@ -20,6 +20,9 @@ exemplos mínimos e reais de cache, armazenamento de objetos e e-mail local.
   atual, somente com PostgreSQL.
 - `zero up`, `zero down`, `zero status`, `zero logs` e `zero doctor` reconhecem
   exclusivamente os serviços habilitados pelo perfil do projeto.
+- Identidade local imutável de cada projeto em `.zero/identity.local.json`, com
+  permissões privadas, e `zero relocate` explícito para preservar o namespace
+  ao mover o diretório de forma segura.
 - Compose, variáveis, portas, nomes Docker, rede, volumes, estado local e journal
   por projeto e por slug.
 - Adaptadores isolados no template para cache Redis, storage compatível com S3
@@ -56,15 +59,23 @@ O template terá uma única definição Compose. Serviços opcionais serão asso
 ao profile Docker apropriado e a CLI selecionará somente o conjunto compatível
 com o manifesto validado. PostgreSQL continua obrigatório para ambos os perfis.
 
-Todos os recursos são derivados do slug previamente validado:
+Todos os recursos são derivados da identidade local imutável; o slug validado
+é apenas a parte legível do namespace:
 
-- containers, rede e volumes possuem namespace do projeto;
+- containers, rede e volumes possuem namespace de identidade local imutável,
+  criado em `zero new`; o slug é apenas parte legível do nome;
 - portas preferenciais são resolvidas localmente e registradas apenas no estado
   privado do projeto;
 - `zero down` para apenas processos e containers comprovadamente pertencentes ao
   namespace, sem remover volumes;
 - `zero logs` aceita somente `app`, `db`, `redis`, `storage` e `email`, e rejeita
   serviços incompatíveis com o profile.
+
+Todo comando operacional exige que o diretório canônico atual corresponda à
+identidade local. Ao mover um diretório, somente `zero relocate` é permitido:
+ele prova a ausência do caminho anterior e atualiza de forma atômica a
+identidade local. Uma cópia que contenha identidade local é recusada e não pode
+observar, diagnosticar ou encerrar o ambiente de origem.
 
 `zero status` e `zero doctor` mostram a condição de cada serviço habilitado,
 sem incluir URLs autenticadas, senhas, tokens ou conteúdo de `.env.local`.
@@ -91,6 +102,10 @@ template `essential` não expõe essas rotas nem instala dependências opcionais
 `complete`, também confirma Redis, MinIO e a conectividade SMTP de Mailpit.
 Retorna `200` apenas quando todas as dependências habilitadas estão saudáveis e
 `503` caso contrário. Respostas não expõem detalhes internos ou credenciais.
+
+Antes de qualquer operação Docker, a CLI aceita somente transporte Unix local
+confiável em socket permitido, canônico e não-symlink. Contextos SSH/TCP e
+remotos são recusados; o socket Docker é tratado como privilégio administrativo.
 
 Se Docker, um serviço, porta ou configuração obrigatória falhar, a CLI preserva
 o estado recuperável, registra apenas metadados seguros e informa uma ação de
