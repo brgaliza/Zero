@@ -97,6 +97,10 @@ export interface TemplateFile {
   readonly contents: string | Uint8Array;
 }
 
+export interface MaterializeOptions {
+  readonly shouldAbort?: () => boolean;
+}
+
 export interface EssentialProjectRenderInput {
   readonly manifest: ProjectManifest;
   readonly templateLock: TemplateLock;
@@ -391,7 +395,13 @@ function cleanupError(
 export async function materializeTemplate(
   destination: ResolvedDestination,
   files: readonly TemplateFile[],
+  options: MaterializeOptions = {},
 ): Promise<void> {
+  const abortIfRequested = (): void => {
+    if (options.shouldAbort?.() === true) {
+      fail("WRITE_FAILED", "A criação foi interrompida antes da publicação do destino.");
+    }
+  };
   assertResolvedDestination(destination);
   const orderedFiles = validateTemplateFiles(files);
   let reservation: DestinationReservation | undefined;
@@ -405,6 +415,7 @@ export async function materializeTemplate(
     stagingDirectory = await createStagingDirectory(destination.parentDirectory);
 
     for (const file of orderedFiles) {
+      abortIfRequested();
       const target = resolve(stagingDirectory, file.path);
       assertPathInsideRoot(stagingDirectory, target);
       const targetParent = dirname(target);
@@ -418,6 +429,7 @@ export async function materializeTemplate(
       await writeFile(target, file.contents, { flag: "wx", mode: 0o600 });
     }
 
+    abortIfRequested();
     await assertDestinationDoesNotExist(destination.directory);
     await rename(stagingDirectory, destination.directory);
     published = true;

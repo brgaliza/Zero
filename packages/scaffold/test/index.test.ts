@@ -241,6 +241,23 @@ describe("materializeTemplate", () => {
     await expect(readdir(parent)).resolves.not.toContainEqual(expect.stringMatching(/^\.zero-/u));
   });
 
+  it("limpa staging e não publica destino quando a criação é interrompida", async () => {
+    const parent = await createTemporaryDirectory();
+    const destination = await resolveProjectDestination({
+      configurationDirectory: parent,
+      directory: "meu-projeto",
+    });
+
+    await expect(
+      materializeTemplate(destination, [{ path: "README.md", contents: "conteúdo" }], {
+        shouldAbort: () => true,
+      }),
+    ).rejects.toMatchObject({ code: "WRITE_FAILED" } satisfies Partial<ScaffoldError>);
+
+    await expect(lstat(destination.directory)).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(readdir(parent)).resolves.not.toContainEqual(expect.stringMatching(/^\.zero-/u));
+  });
+
   it("reporta todos os itens pendentes se staging e reserva não puderem ser limpos", async () => {
     const parent = await createTemporaryDirectory();
     const destination = await resolveProjectDestination({

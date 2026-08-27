@@ -1,6 +1,6 @@
 # Zero — Plano de implementação da Sprint 1
 
-**Status:** aprovado pelo gauntlet; aguarda validação de escopo
+**Status:** concluída; gauntlet aprovado em 27 de agosto de 2026
 **Data:** 26 de agosto de 2026
 **Base de produto:** [design refinado da Fase 1](../specs/2026-08-26-zero-fase-1-design.md)
 

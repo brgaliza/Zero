@@ -129,7 +129,20 @@ async function create(
     directory: config.project.directory,
     configurationDirectory,
   });
-  await materializeTemplate(destination, [...files.values()]);
+  let interrupted = false;
+  const interrupt = (): void => {
+    interrupted = true;
+  };
+  process.once("SIGINT", interrupt);
+  process.once("SIGTERM", interrupt);
+  try {
+    await materializeTemplate(destination, [...files.values()], {
+      shouldAbort: () => interrupted,
+    });
+  } finally {
+    process.removeListener("SIGINT", interrupt);
+    process.removeListener("SIGTERM", interrupt);
+  }
   return { directory: destination.directory, slug: config.project.slug };
 }
 function fromError(error: unknown): NewResult {
