@@ -2,6 +2,9 @@ import { createHash, randomBytes } from "node:crypto";
 import { lstat, mkdir, open, realpath, rename, rm, stat, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { stringify } from "yaml";
+
+import type { ProjectManifest, TemplateLock } from "../../manifest/src/index.js";
 
 const STAGING_PREFIX = ".zero-staging-";
 const RESERVATION_PREFIX = ".zero-create-";
@@ -94,8 +97,94 @@ export interface TemplateFile {
   readonly contents: string | Uint8Array;
 }
 
+export interface EssentialProjectRenderInput {
+  readonly manifest: ProjectManifest;
+  readonly templateLock: TemplateLock;
+  readonly packageLock: string;
+}
+
 function fail(code: ScaffoldErrorCode, message: string): never {
   throw new ScaffoldError(code, message);
+}
+
+function escapeMarkdown(value: string): string {
+  return value.replace(/[\\`*_{}\[\]<>()#+.!|]/gu, "\\$&");
+}
+
+function renderPackageLock(packageLock: string, slug: string): string {
+  const parsed = JSON.parse(packageLock) as { name?: unknown; packages?: Record<string, unknown> };
+  const rootPackage = parsed.packages?.[""];
+  if (typeof rootPackage !== "object" || rootPackage === null || Array.isArray(rootPackage)) {
+    fail("INVALID_TEMPLATE", "O package-lock do template não possui o pacote raiz esperado.");
+  }
+
+  parsed.name = slug;
+  (rootPackage as Record<string, unknown>).name = slug;
+  return `${JSON.stringify(parsed, null, 2)}\n`;
+}
+
+export function renderEssentialProjectFiles(
+  input: EssentialProjectRenderInput,
+): readonly TemplateFile[] {
+  const { manifest, templateLock } = input;
+  const projectName = manifest.project.name;
+  const projectDescription = manifest.project.description;
+  const slug = manifest.project.slug;
+  const packageMetadata = {
+    name: slug,
+    version: "0.1.0",
+    private: true,
+    engines: { node: ">=24", npm: ">=11 <12" },
+    scripts: {
+      dev: "next dev",
+      build: "next build",
+      start: "next start",
+      lint: "eslint .",
+      typecheck: "tsc --noEmit",
+      test: "vitest run",
+    },
+    dependencies: {
+      "@prisma/client": "6.12.0",
+      next: "16.3.3",
+      react: "19.2.0",
+      "react-dom": "19.2.0",
+    },
+    devDependencies: {
+      "@types/node": "24.10.1",
+      "@types/react": "19.2.7",
+      "@types/react-dom": "19.2.3",
+      eslint: "10.9.1",
+      prisma: "6.12.0",
+      typescript: "5.9.3",
+      vitest: "4.1.11",
+    },
+  };
+  const escapedName = escapeMarkdown(projectName);
+  const escapedDescription = escapeMarkdown(projectDescription);
+  const pageTitle = JSON.stringify(projectName);
+  const pageDescription = JSON.stringify(projectDescription);
+
+  return [
+    { path: "zero.yaml", contents: stringify(manifest) },
+    {
+      path: ".zero/template.lock.json",
+      contents: `${JSON.stringify(templateLock, null, 2)}\n`,
+    },
+    { path: "package.json", contents: `${JSON.stringify(packageMetadata, null, 2)}\n` },
+    { path: "package-lock.json", contents: renderPackageLock(input.packageLock, slug) },
+    {
+      path: "README.md",
+      contents: `# ${escapedName}\n\n${escapedDescription}\n\nEste projeto foi criado pelo Zero no perfil \`essential\` e está em **pré-execução** na Sprint 1. O ambiente local funcional será entregue na Sprint 2.\n`,
+    },
+    {
+      path: "app/layout.tsx",
+      contents: `import type { Metadata } from "next";\nimport type { ReactNode } from "react";\n\nimport "./globals.css";\n\nexport const metadata: Metadata = { title: ${pageTitle}, description: ${pageDescription} };\n\nexport default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {\n  return <html lang="pt-BR"><body>{children}</body></html>;\n}\n`,
+    },
+    {
+      path: "app/page.tsx",
+      contents: `const projectName = ${pageTitle};\nconst projectDescription = ${pageDescription};\n\nexport default function HomePage() {\n  return <main><p>{projectName}</p><h1>Fundação criada com segurança</h1><p>{projectDescription}</p><p>Este projeto está em pré-execução.</p></main>;\n}\n`,
+    },
+  ];
 }
 
 function expandHomeDirectory(directory: string, homeDirectory: string): string {

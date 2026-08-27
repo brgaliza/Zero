@@ -1,0 +1,24 @@
+schemaVersion: 1
+project:
+  name: Projeto Zero Essential
+  slug: zero-essential-template
+  description: Fundação estática do perfil Essential criada pelo Zero.
+template:
+  id: next-fullstack
+  version: 1.0.0
+runtime:
+  nodeMajor: 24
+  packageManager: npm
+database:
+  engine: postgres
+  majorVersion: 17
+  orm: prisma
+profile: essential
+services:
+  redis: false
+  storage: false
+  email: false
+capabilities:
+  auth: none
+health:
+  path: /api/health

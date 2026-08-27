@@ -10,5 +10,6 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["packages/**/*.ts", "scripts/**/*.mjs", "eslint.config.mjs"]
+  "include": ["packages/**/*.ts", "scripts/**/*.mjs", "eslint.config.mjs"],
+  "exclude": ["packages/cli/templates/**", "packages/cli/schemas/**"]
 }

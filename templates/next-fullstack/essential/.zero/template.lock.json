@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "template": {
+    "id": "next-fullstack",
+    "version": "1.0.0"
+  },
+  "cliVersion": "0.1.0"
+}
