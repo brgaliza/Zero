@@ -3,23 +3,23 @@ import { describe, expect, it, vi } from "vitest";
 import { run } from "../src/main.js";
 
 describe("run", () => {
-  it("exibe ajuda sem argumentos", () => {
+  it("exibe ajuda sem argumentos", async () => {
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
 
-    expect(run([])).toBe(0);
+    expect(await run([])).toBe(0);
     expect(write).toHaveBeenCalledWith(expect.stringContaining("Zero — fundador guiado"));
 
     write.mockRestore();
   });
 
-  it("exibe a versão", () => {
+  it("exibe a versão", async () => {
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const previousVersion = process.env.ZERO_VERSION;
 
     try {
       process.env.ZERO_VERSION = "0.1.0";
 
-      expect(run(["--version"])).toBe(0);
+      expect(await run(["--version"])).toBe(0);
       expect(write).toHaveBeenCalledWith("0.1.0\n");
     } finally {
       if (previousVersion === undefined) {
@@ -32,7 +32,7 @@ describe("run", () => {
     }
   });
 
-  it("diagnostica setup sem alterar a máquina e permite JSON puro", () => {
+  it("diagnostica setup sem alterar a máquina e permite JSON puro", async () => {
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const probe = vi.fn((command: "npm" | "docker" | "git" | "gh") => {
       return command === "npm"
@@ -40,7 +40,7 @@ describe("run", () => {
         : { kind: "missing" as const };
     });
 
-    expect(run(["setup", "--json"], { nodeVersion: "v24.4.0", probe })).toBe(0);
+    expect(await run(["setup", "--json"], { nodeVersion: "v24.4.0", probe })).toBe(0);
     const output = write.mock.calls[0]?.[0];
     expect(typeof output).toBe("string");
     const parsed = JSON.parse(output as string) as {
@@ -61,13 +61,13 @@ describe("run", () => {
     write.mockRestore();
   });
 
-  it("mantém help contextual e erros com código estável", () => {
+  it("mantém help contextual e erros com código estável", async () => {
     const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
-    expect(run(["help", "setup"])).toBe(0);
+    expect(await run(["help", "setup"])).toBe(0);
     expect(stdout).toHaveBeenCalledWith(expect.stringContaining("Consulta apenas informações"));
-    expect(run(["desconhecido", "--json"])).toBe(2);
+    expect(await run(["desconhecido", "--json"])).toBe(2);
     expect(JSON.parse(stdout.mock.calls.at(-1)?.[0] as string)).toMatchObject({
       code: "UNKNOWN_COMMAND",
       ok: false,
@@ -77,11 +77,11 @@ describe("run", () => {
     stderr.mockRestore();
   });
 
-  it("mantém a saída humana em até 80 colunas", () => {
+  it("mantém a saída humana em até 80 colunas", async () => {
     const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const longCommand = "x".repeat(160);
 
-    expect(run([longCommand])).toBe(2);
+    expect(await run([longCommand])).toBe(2);
     const lines = (stderr.mock.calls[0]?.[0] as string).trimEnd().split("\n");
     expect(lines.every((line) => line.length <= 80)).toBe(true);
     stderr.mockRestore();

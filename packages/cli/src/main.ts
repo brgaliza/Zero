@@ -26,8 +26,11 @@ interface SetupCheck {
 interface CommandResult {
   readonly ok: boolean;
   readonly command: string;
+  readonly exitCode?: number;
   readonly code?: string;
   readonly message?: string;
+  readonly nextAction?: string;
+  readonly result?: { readonly directory: string; readonly slug: string };
   readonly checks?: readonly SetupCheck[];
 }
 
@@ -70,12 +73,13 @@ const rootHelp = `Zero — fundador guiado de projetos web
 
 Uso:
   zero setup [--json]
-  zero new --help
+  zero new
+  zero new --config <arquivo> --yes
   zero help <comando>
 
 Comandos disponíveis:
   setup  Verifica requisitos atuais e futuros da máquina.
-  new    Cria a fundação de um projeto (próximo incremento).
+  new    Cria a fundação estática de um projeto.
 
 Opções globais: --help, -h, --version, -v e --json.
 Use "zero help <comando>" para detalhes. NO_COLOR=1 não altera a saída.`;
@@ -91,8 +95,9 @@ const newHelp = `Uso:
   zero new
   zero new --config <arquivo> --yes
 
-O assistente guiado e o modo declarativo chegam no próximo incremento. Nesta
-sprint, este comando ainda não cria diretórios nem executa npm, Git ou Docker.`;
+Cria a fundação estática do perfil essential. O assistente pede nome, descrição,
+slug e pasta, mostra um resumo e exige confirmação. O modo declarativo escreve
+somente um envelope JSON em stdout.`;
 
 function major(version: string): number | undefined {
   const match = /^v?(\d+)/u.exec(version.trim());
@@ -244,7 +249,7 @@ function wrap80(message: string): string {
 
 function writeResult(result: CommandResult, json: boolean): void {
   (json ? process.stdout : result.ok ? process.stdout : process.stderr).write(
-    `${json ? JSON.stringify({ schemaVersion: 1, ...result }) : resultText(result)}\n`,
+    `${json ? JSON.stringify({ schemaVersion: 1, ...result, exitCode: result.exitCode ?? (result.ok ? 0 : 4) }) : resultText(result)}\n`,
   );
 }
 
@@ -265,10 +270,21 @@ function fail(command: string, code: string, message: string): CommandResult {
   return { ok: false, command, code, message };
 }
 
-export function run(
+function newCommandResult(result: {
+  readonly ok: boolean;
+  readonly exitCode: number;
+  readonly code: string;
+  readonly message: string;
+  readonly nextAction?: string;
+  readonly result?: { readonly directory: string; readonly slug: string };
+}): CommandResult {
+  return { command: "new", ...result };
+}
+
+export async function run(
   argumentsList: readonly string[],
   runtime: CliRuntime = defaultRuntime(),
-): number {
+): Promise<number> {
   const { values, json } = parseArguments(argumentsList);
   const [command, ...options] = values;
 
@@ -310,11 +326,32 @@ export function run(
       process.stdout.write(`${newHelp}\n`);
       return 0;
     }
-    writeResult(
-      fail("new", "UNAVAILABLE_COMMAND", "zero new será disponibilizado no próximo incremento."),
-      json,
-    );
-    return 3;
+    const newModule = await import("./" + "new.cjs");
+    const npm = runtime.probe("npm");
+    const newRuntime = newModule.defaultNewRuntime({
+      nodeVersion: runtime.nodeVersion,
+      npmVersion: npm.kind === "detected" ? npm.version : undefined,
+    });
+    const declarative = options.includes("--config") || options.includes("--yes");
+    const result = declarative
+      ? options[0] === "--config" && options[1] !== undefined && options[2] === "--yes"
+        ? await newModule.runDeclarative(options[1], true, newRuntime)
+        : {
+            ok: false,
+            exitCode: 2,
+            code: "INVALID_ARGUMENTS",
+            message: "Use exatamente: zero new --config <arquivo> --yes.",
+          }
+      : options.length === 0
+        ? await newModule.runGuided(newRuntime)
+        : {
+            ok: false,
+            exitCode: 2,
+            code: "INVALID_ARGUMENTS",
+            message: 'Use "zero new --help" para ver as opções aceitas.',
+          };
+    writeResult(newCommandResult(result), declarative || json);
+    return result.exitCode;
   }
   writeResult(fail("unknown", "UNKNOWN_COMMAND", `Comando desconhecido: ${command}`), json);
   return 2;

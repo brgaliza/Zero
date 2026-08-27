@@ -35,6 +35,7 @@ try {
 
   const expectedFiles = new Set([
     "dist/main.js",
+    "dist/new.cjs",
     "dist/scaffold.cjs",
     "package.json",
     "schemas/new-project-config.v1.schema.json",

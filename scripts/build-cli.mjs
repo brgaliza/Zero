@@ -7,6 +7,7 @@ const outputDirectory = new URL("../packages/cli/dist/", import.meta.url);
 const outputFile = new URL("main.js", outputDirectory);
 const obsoleteScaffoldOutputDirectory = new URL("../packages/scaffold/dist/", import.meta.url);
 const scaffoldOutputFile = new URL("scaffold.cjs", outputDirectory);
+const newOutputFile = new URL("new.cjs", outputDirectory);
 const templateSourceDirectory = new URL("../templates/", import.meta.url);
 const templateOutputDirectory = new URL("../packages/cli/templates/", import.meta.url);
 const schemaSourceDirectory = new URL("../schemas/", import.meta.url);
@@ -32,6 +33,16 @@ await build({
   entryPoints: [fileURLToPath(new URL("../packages/cli/src/bin.ts", import.meta.url))],
   format: "esm",
   outfile: fileURLToPath(outputFile),
+  platform: "node",
+  target: "node24",
+  external: ["./new.cjs"],
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/new.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(newOutputFile),
   platform: "node",
   target: "node24",
 });
