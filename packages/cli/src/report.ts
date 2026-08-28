@@ -7,12 +7,15 @@ type SafeCheck = { readonly id: string; readonly state: string };
 export async function runReport(input: {
   readonly zeroVersion: string;
   readonly checks: readonly { readonly id: string; readonly state: string }[];
+  readonly homeDirectory?: string;
 }): Promise<{ readonly ok: boolean; readonly exitCode: number; readonly code: string; readonly message: string }> {
-  const directory = join(homedir(), ".zero", "reports");
+  const homeDirectory = input.homeDirectory ?? homedir();
+  const zeroDirectory = join(homeDirectory, ".zero");
+  const directory = join(zeroDirectory, "reports");
   const destination = join(directory, "zero-report.json");
   try {
     await mkdir(directory, { recursive: true, mode: 0o700 });
-    await chmod(join(homedir(), ".zero"), 0o700);
+    await chmod(zeroDirectory, 0o700);
     await chmod(directory, 0o700);
     const checks: SafeCheck[] = input.checks.map(({ id, state }) => ({ id, state }));
     const contents = JSON.stringify({ schemaVersion: 1, zeroVersion: input.zeroVersion, platform: process.platform, architecture: process.arch, nodeVersion: process.version, checks, timestamp: new Date().toISOString() }) + "\n";
