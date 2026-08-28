@@ -61,7 +61,7 @@ describe("run", () => {
     write.mockRestore();
   });
 
-  it("aceita Node.js 26 e mantém Node.js 23 como bloqueador", async () => {
+  it("aceita Node.js 26 e bloqueia majors não homologados", async () => {
     const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
     const probe = vi.fn(() => ({ kind: "detected" as const, version: "11.17.0" }));
 
@@ -72,6 +72,11 @@ describe("run", () => {
 
     expect(await run(["setup", "--json"], { nodeVersion: "v23.11.0", probe })).toBe(0);
     expect(JSON.parse(write.mock.calls[1]?.[0] as string)).toMatchObject({
+      checks: expect.arrayContaining([expect.objectContaining({ id: "node", state: "blocked" })]),
+    });
+
+    expect(await run(["setup", "--json"], { nodeVersion: "v27.0.0", probe })).toBe(0);
+    expect(JSON.parse(write.mock.calls[2]?.[0] as string)).toMatchObject({
       checks: expect.arrayContaining([expect.objectContaining({ id: "node", state: "blocked" })]),
     });
     write.mockRestore();
