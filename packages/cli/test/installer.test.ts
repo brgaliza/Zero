@@ -2,7 +2,7 @@ import { lstat, mkdtemp, readlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { activateInstalledVersion, versionDirectory } from "../src/installer.js";
+import { acquireInstallLock, activateInstalledVersion, versionDirectory } from "../src/installer.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true }))); });
@@ -20,5 +20,14 @@ describe("installer layout", () => {
 
   it("recusa versão que não possa virar caminho", () => {
     expect(() => versionDirectory("/tmp/zero", "../v1")).toThrow("Versão de instalação inválida");
+  });
+
+  it("serializa operações concorrentes", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zero-installer-"));
+    roots.push(root);
+    const release = await acquireInstallLock(root);
+    await expect(acquireInstallLock(root)).rejects.toThrow("Outra operação");
+    await release();
+    await expect(acquireInstallLock(root)).resolves.toBeTypeOf("function");
   });
 });
