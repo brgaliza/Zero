@@ -135,12 +135,17 @@ instrui anexar somente esse arquivo e informar a etapa. Notas da release definem
 canal, responsável e prazo de resposta.
 
 O instalador não usa `npm -g`: instala em prefixo privado user-owned
-`~/.zero/cli/versions/vX.Y.Z`: em staging, executa
-`npm install --ignore-scripts --no-package-lock --prefix <staging> <tarball>` e
-localiza o binário em `<staging>/node_modules/.bin/zero`. Antes do swap, cria
+`~/.zero/cli/versions/vX.Y.Z`. Como o gate de pacote exige zero dependencies e
+scripts, o instalador não entrega um caminho do Downloads ao npm: baixa o tarball
+diretamente em staging aleatório `0700`, cria arquivo exclusivo `0600` com
+`O_NOFOLLOW`, e mantém o descritor aberto. Calcula e verifica assinatura,
+provenance e digest sobre esses mesmos bytes; um extrator interno com paths,
+inventário e modos allowlisted consome esse descritor e materializa o pacote em
+`<staging>/package`. O arquivo é apagado em falha e nunca se executa arquivo cuja
+verificação não tenha ocorrido no descritor consumido. Antes do swap, cria
 `<staging>/bin/zero`, wrapper executável que chama o Node aprovado pelo instalador
-e esse binário local; testa o wrapper com `--version` e `--help`. Só então move o
-staging para `versions/vX.Y.Z`, cria/troca atomicamente
+e `<staging>/package/dist/main.js`; testa o wrapper com `--version` e `--help`.
+Só então move o staging para `versions/vX.Y.Z`, cria/troca atomicamente
 `~/.zero/cli/current` para essa versão e cria o shim estável
 `~/.zero/bin/zero`. O shim é imutável e executa exclusivamente
 `~/.zero/cli/current/bin/zero`. Em macOS com zsh, com consentimento, inclui uma
@@ -167,10 +172,11 @@ por rename atômico de symlink. Ao iniciar, qualquer instalação detecta `curre
 ausente ou staging abandonado, preserva a última referência válida registrada e
 mostra recuperação determinística. Metadata anterior é mantida até confirmar o
 swap; falha restaura a referência anterior. Testes injetam falha em download,
-staging, swap, shim e interrupção do processo. Testes de instalação inicial,
-atualização e rollback confirmam que `zero --version` muda somente após o swap e
-preserva a versão anterior em falha. Rollback não toca containers, volumes ou
-arquivos de projetos.
+staging, swap, shim e interrupção do processo, e substituem o tarball após cada
+verificação para provar que bytes alterados nunca são executados. Testes de
+instalação inicial, atualização e rollback confirmam que `zero --version` muda
+somente após o swap e preserva a versão anterior em falha. Rollback não toca
+containers, volumes ou arquivos de projetos.
 
 ## Controles verificáveis de publicação
 
@@ -189,8 +195,12 @@ ref/tag exata, predicate type SLSA aprovado, digest idêntico e entrada de
 transparência Rekor com prova de inclusão válida. Certificado Fulcio pode estar
 expirado no momento da instalação somente se a prova Rekor demonstrar que estava
 válido no instante assinado; cadeia inválida, revogação aplicável, identidade fora
-da política ou prova ausente/inválida falha fechado. Testes adulteram assinatura,
-certificado/identidade, inclusão e cada campo de política.
+da política ou prova ausente/inválida falha fechado. Além do path, `job_workflow_ref`
+deve corresponder a `owner/repo/.github/workflows/beta-release.yml@SHA-completo`
+numa allowlist versionada e embutida no instalador; mudança dessa revisão requer
+rotação explícita aprovada e novo instalador. Testes adulteram assinatura,
+certificado/identidade, inclusão, cada campo de política e somente o SHA do
+workflow, todos com falha fechada.
 A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
 apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
