@@ -25,16 +25,17 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run release:assets -- "${GITHUB_REF_NAME}" dist/release
+      - run: |
+          dmg="Zero-Beta-Installer-${GITHUB_REF_NAME}.dmg"
+          curl --fail --location --proto '=https' --tlsv1.2 --output "dist/release/${dmg}" "${ZERO_DMG_URL:?Configure ZERO_DMG_URL no Environment}"
+          printf '%s  %s\n' "${ZERO_DMG_SHA256:?Configure ZERO_DMG_SHA256 no Environment}" "${dmg}" >> dist/release/SHA256SUMS
       - run: >-
           npm run generate:beta-guide -- --version "${GITHUB_REF_NAME}"
           --dmg-url "${ZERO_DMG_URL:?Configure ZERO_DMG_URL no Environment}"
           --dmg-sha256 "${ZERO_DMG_SHA256:?Configure ZERO_DMG_SHA256 no Environment}"
           --team-id "${ZERO_TEAM_ID:?Configure ZERO_TEAM_ID no Environment}"
           --output dist/release/GUIA-BETA-pt-BR.md
-      - run: |
-          test -f dist/release/SHA256SUMS
-          test -f dist/release/GUIA-BETA-pt-BR.md
-          test -f "dist/release/zero-${GITHUB_REF_NAME}.tgz"
+      - run: npm run verify:beta-release -- "${GITHUB_REF_NAME}" dist/release "${ZERO_TEAM_ID}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: beta-release-${{ github.ref_name }}

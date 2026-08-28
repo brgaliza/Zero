@@ -14,6 +14,7 @@
     "build": "node scripts/build-cli.mjs",
     "generate:beta-guide": "node scripts/generate-beta-guide.mjs",
     "release:assets": "node scripts/create-release-assets.mjs",
+    "verify:beta-release": "node scripts/verify-beta-release.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format:check": "prettier --check package.json tsconfig.json eslint.config.mjs prettier.config.mjs packages scripts schemas",
