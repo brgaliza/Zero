@@ -20,8 +20,7 @@ antes de a CLI existir; ele é baixado junto ao tarball, mas não é extraído d
 O tester recebe o link privado da release e os dois SHA-256 exatos em mensagem
 individual por canal independente previamente combinado com a equipe. Ele compara
 cada valor com `SHA256SUMS` e com `shasum`. Divergência interrompe a instalação.
-O hash confere
-integridade e a mensagem externa autentica a referência esperada; a página de
+O hash confere integridade e a mensagem externa autentica a referência esperada; a página de
 release nunca é a única fonte de confiança. Não há DMG, app macOS, Gatekeeper, certificado Apple,
 notarização, instalação por `sudo`, registry npm ou auto-update nesta sprint.
 
@@ -30,8 +29,10 @@ Antes de qualquer tag, um workflow manual de candidate recebe SHA e versão,
 executa `npm run check`, gera os dois assets, valida versão/inventário/digest e
 emite um atestado contendo SHA, versão, hashes e ID de run. O candidate entra em
 Environment com dois revisores e entrega seus assets privados para os Gates A e
-B. A tag anotada só é permitida depois: sua mensagem precisa declarar o ID do
-candidate. O workflow de publicação lê esse ID, consulta o atestado do run,
+B. Depois dos Gates, um workflow `promote-candidate`, protegido por dois
+revisores, é o único emissor de tags: ele valida o atestado e as evidências,
+cria a tag anotada por GitHub App restrito e registra `Zero-Candidate-Run` na
+mensagem, com URLs das evidências A e B verificadas pelos revisores. Push direto de tags é proibido por ruleset. O workflow de publicação lê esse ID, consulta o atestado do run,
 exige conclusão aprovada e exige correspondência exata entre SHA do candidate,
 commit da tag, versão e hashes recriados. Qualquer divergência bloqueia a release.
 
@@ -52,7 +53,7 @@ que fazer se falhar.
 3. O tester baixa `zero-vX.Y.Z.tgz` da release privada no navegador. No Terminal,
    executa um bloco que cria uma pasta privada em Downloads, move os dois arquivos
    para ela, calcula `shasum -a 256` e interrompe se algum valor não for exatamente
-   o checksum da mensagem externa e do guia.
+   os checksums da mensagem externa e do guia.
 4. Depois da conferência, o tester executa o bootstrap separado com `node`. Ele
    recebe o caminho do tarball e os hashes esperados de tarball e bootstrap, recusa argumentos extras
    e usa npm local em modo offline, sem scripts, audit, fund ou configurações do
@@ -69,7 +70,11 @@ que fazer se falhar.
 
 ## Segurança e falhas
 
-O download nunca é executado antes da conferência do checksum. O instalador usa
+O download nunca é executado antes da conferência do checksum. Antes da primeira
+mutação dos ponteiros, o instalador grava journal privado contendo os ponteiros
+anterior e seguinte e o estágio da ativação. Na abertura seguinte ele recupera o
+estado interrompido para os valores anteriores ou bloqueia com código estável se
+não puder fazê-lo. O instalador usa
 staging privado, rejeita paths fora do pacote, preserva a versão atual se
 download, validação ou swap falhar e registra a versão anterior para rollback.
 `zero report` continua limitado a dados sanitizados, com arquivo `0600`.

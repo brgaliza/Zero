@@ -30,11 +30,12 @@ DMG, conta Apple ou instalação global do npm.
    no-follow, recusa ancestrais symlink e documenta que um processo com o mesmo
    UID que pode substituir o diretório privado está fora da fronteira defendida.
 4. Definir ativação transacional: validar wrapper e criar/validar shim estável
-   antes de tocar em `current`; preparar `previous` temporário apontando ao ativo;
-   trocar `previous` e depois `current` por renames atômicos. Se a troca de
-   `current` falhar, restaurar `previous`; se a restauração falhar, registrar
-   journal privado e bloquear rollback até recuperação segura. A versão ativa
-   permanece a anterior em toda falha antes do rename de `current`.
+   antes de tocar em `current`; gravar e sincronizar journal privado com estado
+   anterior, alvo e fase `prepared` antes da primeira mutação; preparar `previous`
+   temporário apontando ao ativo; trocar `previous` e depois `current` por renames
+   atômicos, atualizando o journal entre cada fronteira. Ao iniciar, recuperar
+   qualquer journal incompleto para ambos os ponteiros anteriores; se isso falhar,
+   bloquear rollback com código estável. Testar interrupção após cada rename.
 5. Expor `node zero-bootstrap-vX.Y.Z.cjs --tarball <arquivo> --version vX.Y.Z --sha256 <hex> --bootstrap-sha256 <hex>` para o guia
    e manter respostas seguras por código, sem ecoar paths pessoais, URL ou saída
    bruta do npm.
@@ -54,10 +55,10 @@ DMG, conta Apple ou instalação global do npm.
 ## P0 — guia e assets privados
 
 8. Substituir o gerador de guia baseado em DMG por argumentos estritos
-   `--version`, `--release-url` e `--sha256`. O arquivo explica como abrir o
+   `--version`, `--release-url`, `--sha256` e `--bootstrap-sha256`. O arquivo explica como abrir o
    Terminal, instalar Node 26/npm 11 e Docker Desktop pelos links oficiais,
    baixar o asset no navegador, comparar o checksum com a mensagem independente,
-   `SHA256SUMS` e `shasum`, executar o bootstrap,
+   `SHA256SUMS` e `shasum`, executar o bootstrap com os dois hashes literais,
    escolher PATH e concluir `setup`, `new`, `up`, `down`, `report` e rollback.
    Cada etapa contém bloco copiável, resultado esperado e orientação de falha.
 9. Gerar `SHA256SUMS` para tarball e bootstrap e validar versão declarada no `package.json`,
@@ -68,6 +69,9 @@ DMG, conta Apple ou instalação global do npm.
     sem criar tag, do `beta-release`, acionado apenas por tag protegida. O candidate
     produz assets e atestado imutável `{commitSha, version, tarballSha256,
    bootstrapSha256, runId}` para os Gates A/B em Environment de dois revisores.
+    Após os Gates A/B, `promote-candidate` recebe o `runId`, entra em Environment
+    de dois revisores, valida evidências e usa GitHub App com permissão exclusiva
+    de criar tag para gerar a tag anotada. Ruleset proíbe push de tag por pessoas.
     A tag anotada declara `Zero-Candidate-Run: <runId>`; `beta-release` consulta
     esse run e exige atestado, aprovação e SHA exatamente iguais à tag antes de
     recriar assets, baixá-los por API e criar a GitHub Release privada com
@@ -81,7 +85,8 @@ DMG, conta Apple ou instalação global do npm.
 12. Cobrir unitariamente: checksum inválido de tarball/bootstrap, tag/nome/inventário divergentes,
     scripts/dependencies proibidos, falha de npm, staging externo/symlink,
     wrapper inválido, recusa de PATH, lock órfão/ativo, ancestral symlink,
-    troca TOCTOU de staging e rollback após bootstrap.
+    troca TOCTOU de staging, recovery após cada checkpoint de journal e rollback
+    após bootstrap. Cobrir o contrato estrito do guia, inclusive ambos os hashes.
 13. Criar teste de instalação limpa em diretório temporário: gerar tarball e bootstrap,
     calcular hash, executar literalmente o bootstrap com Node 24 e Node 26,
     verificar `zero --version`, `zero setup` e rollback. Nenhuma instalação em
@@ -90,6 +95,9 @@ DMG, conta Apple ou instalação global do npm.
     Gate B em Mac Apple Silicon sem Node/npm/Docker, seguindo o guia sem edição.
     Ambos registram versão, checksum conferido, trilha de PATH, `setup`, primeiro
     projeto, `down`, `report` e rollback. Falha bloqueia a release.
+15. Testar o encadeamento candidate→promotion→tag→release com fixtures: `runId`
+    ausente, inexistente, não aprovado, com SHA/versão/hash divergente, tag sem
+    anotação, tag criada por actor não permitido e a única trilha aprovada.
 
 ## Ordem e corte
 
