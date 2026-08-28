@@ -57,18 +57,21 @@ DMG, conta Apple ou instalação global do npm.
 8. Substituir o gerador de guia baseado em DMG por argumentos estritos
    `--version`, `--release-url`, `--sha256` e `--bootstrap-sha256`. O arquivo explica como abrir o
    Terminal, instalar Node 26/npm 11 e Docker Desktop pelos links oficiais,
-   baixar o asset no navegador, comparar o checksum com a mensagem independente,
+   receber primeiro o hash externo de `release-manifest.json`, validar manifesto
+   e guia antes de ler comandos, comparar cada asset com manifesto,
    `SHA256SUMS` e `shasum`, executar o bootstrap com os dois hashes literais,
    escolher PATH e concluir `setup`, `new`, `up`, `down`, `report` e rollback.
    Cada etapa contém bloco copiável, resultado esperado e orientação de falha.
-9. Gerar `SHA256SUMS` para tarball e bootstrap e validar versão declarada no `package.json`,
-   guia, nome de asset e
+9. Gerar `SHA256SUMS` para tarball, bootstrap e guia; gerar `release-manifest.json`
+   canônico com nome, versão e hashes de todos os assets; validar versão declarada no `package.json`,
+   guia, manifesto, nome de asset e
    digest no script de release. Remover do workflow qualquer variável, download,
    verificação ou texto relacionado a DMG, Team ID ou Apple.
 10. Separar o workflow `beta-candidate`, acionado manualmente por SHA e versão
     sem criar tag, do `beta-release`, acionado apenas por tag protegida. O candidate
     produz assets e atestado imutável `{commitSha, version, tarballSha256,
-   bootstrapSha256, runId}` para os Gates A/B em Environment de dois revisores.
+   bootstrapSha256, guideSha256, sumsSha256, manifestSha256, runId}` para os Gates
+    A/B em Environment de dois revisores.
     Após os Gates A/B, `promote-candidate` recebe o `runId`, entra em Environment
     de dois revisores, valida evidências e usa GitHub App com permissão exclusiva
     de criar tag para gerar a tag anotada. Ruleset proíbe push de tag por pessoas.
@@ -82,7 +85,7 @@ DMG, conta Apple ou instalação global do npm.
 
 ## P0 — validação
 
-12. Cobrir unitariamente: checksum inválido de tarball/bootstrap, tag/nome/inventário divergentes,
+12. Cobrir unitariamente: manifesto/guia/checksum inválidos, checksum inválido de tarball/bootstrap, tag/nome/inventário divergentes,
     scripts/dependencies proibidos, falha de npm, staging externo/symlink,
     wrapper inválido, recusa de PATH, lock órfão/ativo, ancestral symlink,
     troca TOCTOU de staging, recovery após cada checkpoint de journal e rollback
