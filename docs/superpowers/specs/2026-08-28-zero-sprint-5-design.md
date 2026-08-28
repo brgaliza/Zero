@@ -227,12 +227,32 @@ embutido: raiz/intermediários Fulcio, chave/ID Rekor e checkpoint/política de 
 Ele valida offline assinatura, inclusão e checkpoint; atualização do bundle só chega
 em novo instalador assinado por identidade já confiável. Certificado expirado após
 assinatura é aceito apenas com prova Rekor do instante válido; qualquer cadeia ou
-prova inválida falha fechado. O manifesto JCS do DMG, assinado pela chave de release,
+prova inválida falha fechado. A verificação Rekor exige `logID`, algoritmo/chave
+allowlisted, `treeSize`, `rootHash`, checkpoint assinado, `leafIndex`, inclusion
+path e `integratedTime`, todos vinculados ao certificado e DSSE; checkpoint só
+avança se a assinatura vier da chave Rekor embutida. Fixtures adulteram ID,
+algoritmo, treeSize, path, timestamp e checkpoint. O manifesto JCS do DMG, assinado pela chave de release,
 fixa `repository`, `release_tag`, `commit_sha`, digest, caller e signer. O signer
 deve ser exatamente `owner/repo/.github/workflows/beta-release.yml@SHA-40`; o
-chamador deve ser exatamente o workflow de tag daquele release. A política não
-deriva da proveniência e só muda em novo instalador assinado. Fixtures adulteram
+chamador deve ser exatamente `owner/repo/.github/workflows/release-tag.yml@refs/tags/vX.Y.Z`,
+com `workflow_sha == commit_sha`, `ref == refs/tags/vX.Y.Z`, e só pode chamar o
+signer no SHA literal aprovado. HSM, Statement e manifesto comparam essa cadeia
+fechada antes de assinar/aceitar. A política não deriva da proveniência e só muda
+em novo instalador assinado. Fixtures adulteram
 cada campo, duplicidade, SHA e trust bundle, todos com falha fechada.
+
+O perfil Fulcio é pinado pela versão do trust bundle e usa somente estes OIDs DER
+UTF8String: `.1.8` issuer (`iss`), `.1.9` Build Signer URI
+(`https://github.com/` + `job_workflow_ref`), `.1.10` Build Signer Digest
+(`job_workflow_sha`), `.1.12` Source Repository URI
+(`https://github.com/` + `repository`), `.1.13` Source Repository Digest (`sha`),
+`.1.14` Source Repository Ref (`ref`), `.1.18` Build Config URI
+(`https://github.com/` + `workflow_ref`) e `.1.19` Build Config Digest
+(`workflow_sha`), todos sob `1.3.6.1.4.1.57264`. O SAN OtherName `.1.7` é lido
+somente como identidade de conta, não como workflow. A transformação permitida é
+apenas `releaseTag = ref` sem o prefixo literal `refs/tags/`; os outros pares são
+iguais byte a byte. O parser rejeita OID, encoding, SAN, claim, transformação ou
+duplicidade inesperados; fixtures incluem certificado real de produção.
 A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
 apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
@@ -263,14 +283,17 @@ repositório: issuer e audience literais, repository canônico, tag/ref protegid
 `workflow_ref`, `workflow_sha`, `job_workflow_ref`, `job_workflow_sha`, SHA do
 commit e Environment `beta-release`. Manifesto, parâmetros e conteúdo enviados
 pelo job nunca autorizam assinatura. Como OIDC não prova aprovações, o HSM consulta
-por GitHub App read-only separado a API autenticada de deployment/reviews e compara
-`repository_id`, `run_id`, `run_attempt`, deployment/environment ID, `ref`, `sha`
-e estado final ao JWT; exige dois reviewers aprovados, distintos entre si e do
-`actor_id`, posteriores à criação daquele deployment e anteriores à assinatura.
-Cache, paginação, retry, resposta parcial, ausente ou ambígua falham fechados. A
-auditoria imutável retém IDs, hash da resposta, repositório, tag, SHA e workflow
-por sete anos. Alterar a allowlist requer controle administrativo separado e dois
-responsáveis. O
+por GitHub App read-only separado a API autenticada de deployment/reviews e exige
+um atestado JWS do broker externo de aprovações. O broker aplica e registra duas
+aprovações individuais imutáveis para `{repository_id, deployment_id,
+environment_id, run_id, run_attempt, ref, sha}`, usando IDs distintos e distintos
+do `actor_id`; inclui chave pública/versionamento e janela temporal, e só emite
+depois do deployment e antes da assinatura. O HSM valida JWS contra a chave do
+broker administrada fora do repositório e compara todos os campos ao JWT. Cache,
+paginação, retry, revogação, resposta parcial, ausente ou ambígua falham fechados.
+A auditoria imutável retém o JWS, IDs, hash da resposta, repositório, tag, SHA e
+workflow por sete anos. Alterar a allowlist requer controle administrativo separado
+e dois responsáveis. O
 Environment nega pull request, fork e branch; workflow alterado não ganha
 capacidade de assinatura apenas por estar em branch protegida. Cada assinatura
 gera auditoria imutável com repositório, tag, SHA, workflow e operador.
