@@ -42,11 +42,13 @@ O workflow gera e anexa `GUIA-BETA-pt-BR.md` a cada release; não há placeholde
 O template obrigatório preenche URL exata de
 `Zero-Beta-Installer-vX.Y.Z.dmg`, caminho literal em Downloads, instrução para
 abrir o DMG e arrastar o app para Aplicativos, comando completo
-`spctl -a -vv "/Applications/Zero Beta Installer.app"`, Team ID, fingerprint,
-URL oficial de cada pré-requisito, caminho de `zero report` e texto esperado de
-sucesso/falha. Os valores a comparar chegam também pela mensagem de boas-vindas,
-em canal independente. O guia contém uma trilha única, em blocos de copiar e
-colar e resultado esperado após cada ação:
+`codesign -dv --verbose=4 "/Applications/Zero Beta Installer.app" 2>&1` e o
+único valor humano a comparar, `TeamIdentifier`, com o Team ID que chega pela
+mensagem de boas-vindas em canal independente. Fingerprint/chave do tarball não
+é verificação manual: a chave pública canônica embutida é verificada somente pelo
+instalador. O template também preenche URL oficial de cada pré-requisito, caminho
+de `zero report` e texto esperado de sucesso/falha. O guia contém uma trilha
+única, em blocos de copiar e colar e resultado esperado após cada ação:
 
 1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
 2. abrir o Terminal e executar o preflight independente copiado do guia
@@ -55,22 +57,26 @@ colar e resultado esperado após cada ação:
    instalar o Zero;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
 4. baixar o DMG para Downloads, abri-lo, arrastar `Zero Beta Installer.app` para
-   Aplicativos e executar o comando completo copiado do guia; comparar
-   Team ID/fingerprint exibidos com a mensagem de boas-vindas recebida por canal
-   independente; divergência interrompe o fluxo. O instalador verifica automaticamente
+   Aplicativos e executar o comando completo copiado do guia; localizar
+   `TeamIdentifier` na saída e compará-lo com o Team ID da mensagem de boas-vindas
+   recebida por canal independente; divergência interrompe o fluxo. O instalador verifica automaticamente
    assinatura, fingerprint, provenance e checksum antes de instalar o tarball
    com lifecycle scripts desabilitados, e para sem instalar se algo falhar;
-5. confirmar `zero --version`, executar `zero setup` e resolver somente o item
-   indicado;
+5. aceitar ou recusar a inclusão no PATH; o instalador indica uma das duas
+   trilhas completas do guia: todos os comandos usam `zero` se aceita ou
+   `~/.zero/bin/zero` se recusada. Confirmar a versão e executar `setup` pela
+   trilha indicada, resolvendo somente o item apontado;
 6. criar projeto `essential` com respostas transcritas no guia (nome, descrição,
    slug, pasta sugerida, perfil `essential`, início `não` e confirmação `sim`),
    entrar na pasta impressa e executar `zero up`;
 7. abrir a URL e executar a validação que o Zero imprimir;
 8. encerrar com `zero down` quando desejar.
 
-O Zero deve imprimir a pasta, URL e próximo comando de validação de modo que o
-guia não exija inferência de portas, `cd` ou rota de health. Capturas entram
-somente para abrir Terminal e reconhecer Docker Desktop pronto.
+O gerador substitui a forma de comando escolhida em todas as ocorrências, inclusive
+versão, setup, criação, validação, up/down, report e rollback; não mistura os
+dois ramos. O Zero deve imprimir a pasta, URL e próximo comando de validação de
+modo que o guia não exija inferência de portas, `cd` ou rota de health. Capturas
+entram somente para abrir Terminal e reconhecer Docker Desktop pronto.
 
 ## Diagnóstico, suporte e rollback
 
@@ -107,7 +113,8 @@ caminho encontrado e link oficial de instalação; testes cobrem múltiplas vers
 e processo gráfico sem PATH.
 
 O guia inclui a tela do instalador “Reverter para a versão anterior” e o comando
-equivalente `zero rollback --previous`. Ambos exibem versão-alvo, exigem
+equivalente na forma escolhida, `zero rollback --previous` ou
+`~/.zero/bin/zero rollback --previous`. Ambos exibem versão-alvo, exigem
 confirmação e obtêm o artefato da release anterior pelos mesmos controles de
 assinatura, chave embutida e provenance. Rollback instala a versão anterior em
 staging, testa-a e verifica matriz CLI↔schema/template; só então troca `current`
@@ -146,8 +153,10 @@ pela identidade de distribuição do Zero;
 Gatekeeper e o preflight manual verificam Team ID/certificado allowlisted antes
 de abrir. A mensagem independente autentica também o instalador. Ela contém o verificador de
 release e orquestrador de instalação, usa fingerprint embutido e allowlist de
-repositório/workflow, mostra progresso e nunca executa shell remoto. Exige
-Node/npm já aprovados pelo preflight, instala somente tarball verificado com
+repositório/workflow, mostra progresso e nunca executa shell remoto. Um manifesto
+embutido e assinado fixa versão, tag e digest do tarball aceito para aquele DMG;
+qualquer divergência ou asset de outra release falha fechado. Exige Node/npm já
+aprovados pelo preflight, instala somente tarball verificado com
 lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
 produz, assina, verifica e anexa o DMG junto aos assets.
 
@@ -155,8 +164,9 @@ Antes de publicar, um Human Gate executa a trilha literal em Mac Apple Silicon
 sem Zero, checkout ou estado anterior, com macOS 14+, Node/npm compatíveis e
 Docker Desktop instalados pelo roteiro oficial. Registra as versões de macOS,
 Node, npm e Docker, tempos, screenshots dos passos visuais e saída sanitizada.
-Falha de qualquer passo bloqueia a release; CI Linux continua complementar, não
-substituta.
+Exercita os dois ramos do guia: consentir e recusar PATH, incluindo rollback em
+ambos. Falha de qualquer passo bloqueia a release; CI Linux continua complementar,
+não substituta.
 
 ## Aceite
 
@@ -166,6 +176,8 @@ substituta.
 - Um Mac sem checkout instala o asset final, executa setup e cria/valida um
   projeto `essential` seguindo literalmente o guia. A auditoria registra tempos
   observados; não há SLA que dependa de rede ou primeiro pull.
+- A instalação limpa e o Human Gate exercitam tanto a trilha com `zero` no PATH
+  quanto a trilha integral com `~/.zero/bin/zero`.
 - O fluxo principal precisa concluir para aceitar a sprint. Relato seguro é
   métrica de suporte, não substituto do sucesso.
 - Teste de instalação limpa, pacote, gauntlet Docker e validação do asset final
