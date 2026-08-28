@@ -44,7 +44,12 @@ rollback atômico.
    do repositório, procedimento de bootstrap e evidência de separação dos jobs de
    assinatura/notarização; testar política sem curingas/valores-modelo, todos os claims
    OIDC, dois humanos externos ao actor/tag, JWS anti-replay/TTL/reconsulta e
-   auditoria imutável, além de negação para PR/fork/claim/review inválidos.
+   auditoria imutável, além de negação para PR/fork/claim/review inválidos. Subgate
+   obrigatório antes do DMG: registro externo consultável da política JCS concreta
+   assinada, política efetivamente carregada no HSM, GitHub App/broker/notarização
+   separados e evento completo (JWS, IDs humanos, hash da resposta, repo/tag/SHA/
+   workflow/operador) retido por sete anos; assinatura sem JWS, claim ou review
+   válido deve falhar.
 
 6. **Instalador macOS.** Construir app/DMG universal; validar runtime, política,
    chave, assinatura, checksum e bundle Sigstore antes da extração. Implementar
@@ -66,13 +71,14 @@ rollback atômico.
    assinada e protegida, versão/commit corretos e recusar tag, versão ou asset
    divergente antes de publicar.
 
-9. **Gates.** Automatizar checks e fixtures; executar dois Human Gates isolados,
-   um em Node 24/npm11 e outro em Node 26/npm11, cada qual com PATH
-   aceito/recusado/fallback e rollback; e snapshot sem
-   Node/npm/Docker/gerenciadores, comprovando ausência e seguindo links/telas.
-   Ambos validam asset do draft, executam literalmente o bloco `codesign`/`spctl`
-   e comparam Team ID pelo canal independente; fixtures e gate cobrem manifesto e
-   Team ID divergentes. Qualquer falha bloqueia publicação.
+9. **Gates.** Automatizar checks e fixtures; executar Gate A em Mac limpo com
+   Node 24/npm11 e Docker preinstalados, exercendo PATH aceito, recusado, fallback
+   e rollback. Executar Gate B em snapshot recém-provisionado sem Node/npm/Docker,
+   Homebrew ou gerenciadores: comprova ausência, instala Node 26/npm11 e Docker
+   pelos links/telas do guia e conclui o primeiro projeto. Ambos validam asset do
+   draft, executam literalmente `codesign`/`spctl`, comparam Team ID pelo canal
+   independente e registram evidências; fixtures cobrem manifesto/Team ID divergentes.
+   Qualquer falha bloqueia publicação.
 
 ## Aceite da Sprint
 
