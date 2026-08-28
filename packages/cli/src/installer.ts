@@ -1,16 +1,18 @@
 import {
   chmod,
+  lstat,
   mkdir,
   mkdtemp,
   open,
-  readdir,
   readlink,
   rename,
   rm,
+  stat,
   symlink,
   writeFile,
 } from "node:fs/promises";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
+import { randomUUID } from "node:crypto";
 
 const VERSION = /^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u;
 
@@ -53,22 +55,32 @@ export async function promoteStaging(
   staging: string,
   version: string,
 ): Promise<void> {
+  const stagingRoot = resolve(rootDirectory, "cli", "staging");
+  const normalizedStaging = resolve(staging);
+  const relativeStaging = relative(stagingRoot, normalizedStaging);
+  if (
+    relativeStaging.length === 0 ||
+    relativeStaging.startsWith("..") ||
+    relativeStaging === ".." ||
+    relativeStaging.startsWith("/")
+  )
+    throw new Error("O staging de instalação é inválido.");
+  const stagingInfo = await lstat(normalizedStaging);
+  if (!stagingInfo.isDirectory() || stagingInfo.isSymbolicLink())
+    throw new Error("O staging de instalação é inválido.");
   const destination = versionDirectory(rootDirectory, version);
   await mkdir(join(rootDirectory, "cli", "versions"), { recursive: true, mode: 0o700 });
-  await rename(staging, destination);
+  await rename(normalizedStaging, destination);
   await activateInstalledVersion(rootDirectory, version);
 }
 
 export async function rollbackInstalledVersion(rootDirectory: string): Promise<string> {
-  const current = await readlink(join(rootDirectory, "cli", "current"));
-  const currentVersion = current.split("/").at(-1);
-  if (currentVersion === undefined) throw new Error("Versão ativa inválida.");
-  const versions = (await readdir(join(rootDirectory, "cli", "versions")))
-    .filter((version) => VERSION.test(version))
-    .sort();
-  const candidates = versions.filter((version) => version !== currentVersion);
-  const target = candidates.at(-1);
-  if (target === undefined) throw new Error("Não há versão anterior instalada para rollback.");
+  const previous = await readlink(join(rootDirectory, "cli", "previous"));
+  const target = previous.split("/").at(-1);
+  if (target === undefined || !VERSION.test(target))
+    throw new Error("Não há versão anterior instalada para rollback.");
+  const targetInfo = await stat(versionDirectory(rootDirectory, target));
+  if (!targetInfo.isDirectory()) throw new Error("A versão anterior instalada é inválida.");
   await activateInstalledVersion(rootDirectory, target);
   return target;
 }
@@ -82,8 +94,22 @@ export async function activateInstalledVersion(
   const binDirectory = join(rootDirectory, "bin");
   await mkdir(cliDirectory, { recursive: true, mode: 0o700 });
   await mkdir(binDirectory, { recursive: true, mode: 0o700 });
+  const targetInfo = await stat(target);
+  if (!targetInfo.isDirectory()) throw new Error("A versão de instalação não está pronta.");
   const current = join(cliDirectory, "current");
-  const temporary = join(cliDirectory, ".current.next");
+  const previous = join(cliDirectory, "previous");
+  try {
+    const active = await readlink(current);
+    const activeVersion = active.split("/").at(-1);
+    if (activeVersion !== undefined && VERSION.test(activeVersion)) {
+      const temporaryPrevious = join(cliDirectory, `.previous-${randomUUID()}`);
+      await symlink(versionDirectory(rootDirectory, activeVersion), temporaryPrevious);
+      await rename(temporaryPrevious, previous);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  const temporary = join(cliDirectory, `.current-${randomUUID()}`);
   await symlink(target, temporary);
   await rename(temporary, current);
   const shim = join(binDirectory, "zero");

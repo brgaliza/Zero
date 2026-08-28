@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   acquireInstallLock,
-  activateInstalledVersion,
   createPrivateStaging,
   promoteStaging,
   rollbackInstalledVersion,
@@ -20,7 +19,7 @@ describe("installer layout", () => {
   it("troca current atomicamente e mantém shim privado", async () => {
     const root = await mkdtemp(join(tmpdir(), "zero-installer-"));
     roots.push(root);
-    await activateInstalledVersion(root, "v1.2.3");
+    await promoteStaging(root, await createPrivateStaging(root), "v1.2.3");
     const current = join(root, "cli", "current");
     expect((await lstat(current)).isSymbolicLink()).toBe(true);
     expect(await readlink(current)).toBe(versionDirectory(root, "v1.2.3"));
@@ -49,6 +48,13 @@ describe("installer layout", () => {
     expect((await stat(versionDirectory(root, "v1.2.3"))).isDirectory()).toBe(true);
   });
 
+  it("recusa staging fora do diretório privado", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zero-installer-"));
+    const outside = await mkdtemp(join(tmpdir(), "zero-installer-outside-"));
+    roots.push(root, outside);
+    await expect(promoteStaging(root, outside, "v1.2.3")).rejects.toThrow("staging");
+  });
+
   it("reverte para a versão local anterior", async () => {
     const root = await mkdtemp(join(tmpdir(), "zero-installer-"));
     roots.push(root);
@@ -56,5 +62,6 @@ describe("installer layout", () => {
     await promoteStaging(root, await createPrivateStaging(root), "v1.1.0");
     await expect(rollbackInstalledVersion(root)).resolves.toBe("v1.0.0");
     expect(await readlink(join(root, "cli", "current"))).toBe(versionDirectory(root, "v1.0.0"));
+    await expect(rollbackInstalledVersion(root)).resolves.toBe("v1.1.0");
   });
 });
