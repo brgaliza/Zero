@@ -44,6 +44,8 @@ try {
     "dist/up.cjs",
     "dist/test.cjs",
     "dist/recover.cjs",
+    "dist/report.cjs",
+    "dist/rollback.cjs",
     "dist/scaffold.cjs",
     "package.json",
     "schemas/new-project-config.v1.schema.json",
