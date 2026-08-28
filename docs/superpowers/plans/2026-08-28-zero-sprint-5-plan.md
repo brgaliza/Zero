@@ -71,9 +71,12 @@ rollback atômico.
    assinada e protegida, versão/commit corretos e recusar tag, versão ou asset
    divergente antes de publicar.
 
-9. **Gates.** Automatizar checks e fixtures; executar Gate A em Mac limpo com
-   Node 24/npm11 e Docker preinstalados, exercendo PATH aceito, recusado, fallback
-   e rollback. Executar Gate B em snapshot recém-provisionado sem Node/npm/Docker,
+9. **Gates.** Automatizar checks e fixtures; executar Gate A em Mac Apple Silicon
+   limpo, sem Zero, checkout ou estado anterior, com Node 24/npm11 e Docker
+   preinstalados/prontos. Em execuções isoladas de PATH aceito, recusado e fallback,
+   instalar o asset draft, executar setup, copiar os blocos `new` e `cd && up`,
+   criar/validar `essential`, encerrar e executar rollback de sucesso e falha,
+   comprovando preservação da versão. Executar Gate B em snapshot recém-provisionado sem Node/npm/Docker,
    Homebrew ou gerenciadores: comprova ausência, instala Node 26/npm11 e Docker
    pelos links/telas do guia e conclui o primeiro projeto. Ambos validam asset do
    draft, executam literalmente `codesign`/`spctl`, comparam Team ID pelo canal
