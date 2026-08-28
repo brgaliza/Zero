@@ -44,7 +44,10 @@ copiar e colar e resultado esperado após cada ação:
    falhar, seguir o link oficial e a instrução concreta correspondente antes de
    instalar o Zero;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
-4. baixar e abrir `Zero Beta Installer.app`; ele verifica automaticamente
+4. baixar e abrir `Zero Beta Installer.app`; antes de abrir, executar o comando
+   copiado `spctl -a -vv` e comparar Team ID/fingerprint com a mensagem de
+   boas-vindas recebida por canal independente; divergência interrompe o fluxo.
+   O instalador verifica automaticamente
    assinatura, fingerprint, provenance e checksum antes de instalar o tarball
    com lifecycle scripts desabilitados, e para sem instalar se algo falhar;
 5. confirmar `zero --version`, executar `zero setup` e resolver somente o item
@@ -63,9 +66,10 @@ somente para abrir Terminal e reconhecer Docker Desktop pronto.
 
 `zero setup` continua somente leitura, mas distingue Docker ausente, instalado
 com Desktop parado, daemon inacessível, transporte remoto recusado e pronto.
-Explica o que falta, por que importa, link oficial e próxima ação. As únicas
-faixas aceitas são Node `>=24 <25` e npm `>=11 <12`; qualquer outra versão
-bloqueia criação/operação, mostra a versão encontrada e a ação de correção.
+Explica o que falta, por que importa, link oficial e próxima ação. As faixas
+aceitas seguem o contrato atual: Node `>=24` e npm `>=11`; versões futuras só
+entram após gates de compatibilidade. Versão abaixo do mínimo bloqueia
+criação/operação; testes cobrem Node 24, Node 26 e versões antigas.
 
 `zero report` gera arquivo JSON `0600` em diretório previsível e privado do Zero
 e aceita somente allowlist de campos: versão Zero, versão macOS, arquitetura,
@@ -78,12 +82,17 @@ suporte cobre comando ausente, PATH, Docker, permissão global e falha de projet
 instrui anexar somente esse arquivo e informar a etapa. Notas da release definem
 canal, responsável e prazo de resposta.
 
-Rollback é transacional: primeiro instala a versão anterior em prefixo temporário,
-executa `zero --version` e `zero setup`, e verifica a matriz CLI↔schema/template
-contra manifestos existentes. Só após todos os checks troca a instalação global;
-falha preserva a CLI atual e remove staging. Se algum projeto não for suportado,
-recusa e mostra a versão mínima compatível. Rollback não toca containers, volumes
-ou arquivos de projetos.
+O instalador não usa `npm -g`: instala em prefixo privado user-owned
+`~/.zero/cli/versions/vX.Y.Z`, testa o binário e cria shim estável
+`~/.zero/bin/zero`. Com consentimento, inclui `~/.zero/bin` no PATH; sem ele, o
+guia usa caminho completo. Finder não precisa herdar PATH de nvm/asdf: o
+instalador descobre Node/npm por caminhos aprovados e recusa incompatibilidade.
+
+Rollback é transacional: instala a versão anterior em staging, testa-a e verifica
+matriz CLI↔schema/template; só então troca `current` por rename atômico de
+symlink. Metadata anterior é mantida até confirmar o swap; falha restaura a
+referência anterior. Testes injetam falha em download, staging, swap e shim.
+Rollback não toca containers, volumes ou arquivos de projetos.
 
 ## Controles verificáveis de publicação
 
@@ -95,14 +104,17 @@ workflow falha quando o autor/assinante/tag não pertence à allowlist.
 
 Além de `SHA256SUMS.asc`, o job emite atestação de proveniência DSSE vinculada ao
 digest do tarball, ao SHA do commit, à tag e ao ID do workflow, e a anexa como
-quarto asset `provenance.intoto.jsonl`. O gate verifica emissor, repositório,
-workflow e digest antes de publicar. A instalação deve parar se a verificação de
+quarto asset `provenance.intoto.jsonl`. O gate aceita apenas issuer GitHub
+Actions, subject do repositório canônico, workflow path permitido fixado no SHA,
+predicate type SLSA aprovado e digest idêntico; testes adulteram cada campo. A
+instalação deve parar se a verificação de
 fingerprint, assinatura ou checksum falhar; o instalador apresenta a causa e
 orienta contatar suporte, sem instalar o arquivo.
 
 `Zero Beta Installer.app` é asset operacional da release. É aplicação macOS
 universal, assinada e notarizada pela identidade de distribuição do Zero;
-Gatekeeper verifica sua assinatura antes de abrir. Ela contém o verificador de
+Gatekeeper e o preflight manual verificam Team ID/certificado allowlisted antes
+de abrir. A mensagem independente autentica também o instalador. Ela contém o verificador de
 release e orquestrador de instalação, usa fingerprint embutido e allowlist de
 repositório/workflow, mostra progresso e nunca executa shell remoto. Exige
 Node/npm já aprovados pelo preflight, instala somente tarball verificado com
