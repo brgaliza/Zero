@@ -41,14 +41,25 @@ publicado junto ao asset não é tratado como autenticação.
 O workflow gera e anexa `GUIA-BETA-pt-BR.md` a cada release; não há placeholders.
 O template obrigatório preenche URL exata de
 `Zero-Beta-Installer-vX.Y.Z.dmg`, caminho literal em Downloads, instrução para
-abrir o DMG e arrastar o app para Aplicativos, comando completo
-`codesign -dv --verbose=4 "/Applications/Zero Beta Installer.app" 2>&1` e o
-único valor humano a comparar, `TeamIdentifier`, com o Team ID que chega pela
-mensagem de boas-vindas em canal independente. Fingerprint/chave do tarball não
-é verificação manual: a chave pública canônica embutida é verificada somente pelo
-instalador. O template também preenche URL oficial de cada pré-requisito, caminho
-de `zero report` e texto esperado de sucesso/falha. O guia contém uma trilha
-única, em blocos de copiar e colar e resultado esperado após cada ação:
+abrir o DMG e arrastar o app para Aplicativos, um bloco completo que executa
+`codesign --verify --deep --strict --verbose=2`, `spctl -a -vv -t execute` e
+`codesign -dv --verbose=4` sobre `"/Applications/Zero Beta Installer.app"`,
+unidos por `&&` para parar no primeiro erro. O texto esperado exige os dois
+verificadores aprovados e então mostra o único valor humano a comparar,
+`TeamIdentifier`, com o Team ID que chega pela mensagem de boas-vindas em canal
+independente. Fingerprint/chave do tarball não é verificação manual: a chave
+pública canônica embutida é verificada somente pelo instalador. O template também
+preenche URL oficial de cada pré-requisito, caminho de `zero report` e texto
+esperado de sucesso/falha. O guia contém uma trilha única, em blocos de copiar e
+colar e resultado esperado após cada ação:
+
+```sh
+codesign --verify --deep --strict --verbose=2 "/Applications/Zero Beta Installer.app" && spctl -a -vv -t execute "/Applications/Zero Beta Installer.app" && codesign -dv --verbose=4 "/Applications/Zero Beta Installer.app" 2>&1
+```
+
+Esse é o bloco obrigatório antes da primeira abertura: `codesign` termina sem
+erro, `spctl` informa avaliação aceita e a última saída contém o `TeamIdentifier`
+esperado. Qualquer outro resultado instrui parar e contatar suporte.
 
 1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
 2. abrir o Terminal e executar o preflight independente copiado do guia
@@ -57,9 +68,11 @@ de `zero report` e texto esperado de sucesso/falha. O guia contém uma trilha
    instalar o Zero;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
 4. baixar o DMG para Downloads, abri-lo, arrastar `Zero Beta Installer.app` para
-   Aplicativos e executar o comando completo copiado do guia; localizar
-   `TeamIdentifier` na saída e compará-lo com o Team ID da mensagem de boas-vindas
-   recebida por canal independente; divergência interrompe o fluxo. O instalador verifica automaticamente
+   Aplicativos e executar, antes da primeira abertura, o bloco completo copiado
+   do guia; ele falha no primeiro erro de assinatura/Gatekeeper. Somente após os
+   dois verificadores aprovados, localizar `TeamIdentifier` na saída e compará-lo
+   com o Team ID da mensagem de boas-vindas recebida por canal independente;
+   divergência interrompe o fluxo. O instalador verifica automaticamente
    assinatura, fingerprint, provenance e checksum antes de instalar o tarball
    com lifecycle scripts desabilitados, e para sem instalar se algo falhar;
 5. aceitar ou recusar a inclusão no PATH; o instalador indica uma das duas
@@ -150,8 +163,9 @@ apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 `Zero-Beta-Installer-vX.Y.Z.dmg` é o asset operacional da release e contém
 `Zero Beta Installer.app`. A aplicação macOS universal é assinada e notarizada
 pela identidade de distribuição do Zero;
-Gatekeeper e o preflight manual verificam Team ID/certificado allowlisted antes
-de abrir. A mensagem independente autentica também o instalador. Ela contém o verificador de
+Gatekeeper e o preflight manual verificam assinatura estrita, avaliação Gatekeeper
+e Team ID/certificado allowlisted antes de abrir. A mensagem independente autentica
+também o instalador. Ela contém o verificador de
 release e orquestrador de instalação, usa fingerprint embutido e allowlist de
 repositório/workflow, mostra progresso e nunca executa shell remoto. Um manifesto
 embutido e assinado fixa versão, tag e digest do tarball aceito para aquele DMG;
