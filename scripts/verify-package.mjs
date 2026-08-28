@@ -36,6 +36,7 @@ try {
   const expectedFiles = new Set([
     "dist/main.js",
     "dist/build.cjs",
+    "dist/bootstrap.cjs",
     "dist/new.cjs",
     "dist/doctor.cjs",
     "dist/down.cjs",
@@ -116,13 +117,8 @@ try {
     throw new Error("O pacote publicado não pode declarar dependencies ou scripts.");
   }
 
-  if (
-    packageMetadata.private !== false ||
-    packageMetadata.publishConfig?.access !== "restricted" ||
-    packageMetadata.publishConfig?.registry !== "https://registry.npmjs.org"
-  ) {
-    throw new Error("O pacote publicado deve usar exclusivamente publicação npm restrita.");
-  }
+  if (packageMetadata.private !== false || packageMetadata.publishConfig !== undefined)
+    throw new Error("O pacote beta não pode configurar um registry npm.");
 
   const helpOutput = execFileSync(
     "node",

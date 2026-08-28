@@ -18,6 +18,7 @@ const buildOutputFile = new URL("build.cjs", outputDirectory);
 const recoverOutputFile = new URL("recover.cjs", outputDirectory);
 const reportOutputFile = new URL("report.cjs", outputDirectory);
 const rollbackOutputFile = new URL("rollback.cjs", outputDirectory);
+const bootstrapOutputFile = new URL("bootstrap.cjs", outputDirectory);
 const templateSourceDirectory = new URL("../templates/", import.meta.url);
 const templateOutputDirectory = new URL("../packages/cli/templates/", import.meta.url);
 const schemaSourceDirectory = new URL("../schemas/", import.meta.url);
@@ -47,6 +48,7 @@ await build({
   target: "node24",
   external: [
     "./build.cjs",
+    "./bootstrap.cjs",
     "./doctor.cjs",
     "./down.cjs",
     "./logs.cjs",
@@ -58,6 +60,15 @@ await build({
     "./test.cjs",
     "./up.cjs",
   ],
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/bootstrap.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(bootstrapOutputFile),
+  platform: "node",
+  target: "node24",
 });
 
 await build({

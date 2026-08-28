@@ -15,6 +15,7 @@ import { join, relative, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 
 const VERSION = /^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u;
+const shellQuote = (value: string): string => `'${value.replace(/'/gu, "'\\\"'\\\"'")}'`;
 
 export function versionDirectory(rootDirectory: string, version: string): string {
   if (!VERSION.test(version)) throw new Error("Versão de instalação inválida.");
@@ -113,8 +114,12 @@ export async function activateInstalledVersion(
   await symlink(target, temporary);
   await rename(temporary, current);
   const shim = join(binDirectory, "zero");
-  await writeFile(shim, '#!/bin/sh\nexec "$HOME/.zero/cli/current/bin/zero" "$@"\n', {
-    mode: 0o700,
-  });
+  await writeFile(
+    shim,
+    `#!/bin/sh\nexec ${shellQuote(join(rootDirectory, "cli", "current", "bin", "zero"))} "$@"\n`,
+    {
+      mode: 0o700,
+    },
+  );
   await chmod(shim, 0o700);
 }
