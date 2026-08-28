@@ -13,16 +13,38 @@ usuário já tenha iniciado com `zero up`.
 
 ## Invariantes obrigatórias
 
-- `zero test` não inicia Docker, não instala dependências e não escreve no
-  projeto; executa apenas os scripts rápidos, por argumentos fixos.
+- `zero test` não inicia Docker nem instala dependências; scripts npm e código
+  do projeto são confiados ao proprietário, portanto a CLI não promete que
+  sejam somente leitura, apenas não introduz escrita fora de seus artefatos.
 - `zero test --e2e` e `zero build` não usam identidade, namespace, portas,
   containers, redes, volumes, journal ou PID persistentes do projeto.
-- Recursos temporários são nomeados por identificador aleatório, pertencem a
-  uma execução e são removidos de forma idempotente em sucesso, erro, timeout,
-  `SIGINT` e `SIGTERM`.
-- A barreira de Docker local confiável é aplicada antes de todo subprocesso
-  Docker. O subprocesso recebe explicitamente o endpoint validado e não herda
-  seleção de host/contexto do ambiente do usuário.
+- Recursos temporários são nomeados e rotulados por `run-id` aleatório; a
+  intenção é registrada antes da criação e o cleanup idempotente seleciona
+  somente recursos com os dois labels esperados. Ele roda em sucesso, erro,
+  timeout, `SIGINT` e `SIGTERM`; crash, `SIGKILL` e queda do daemon só permitem
+  recuperação limitada ao mesmo `run-id`.
+- A barreira de Docker local confiável é implementada antes e aplicada a todo
+  subprocesso, inclusive aos comandos existentes `up`, `down`, `status`,
+  `logs` e `doctor`. O subprocesso recebe explicitamente o endpoint validado e
+  não herda seleção de host/contexto do ambiente do usuário.
+- `compose.yaml`, imagens, mounts, rede, portas e contexto Docker do projeto
+  não são confiados: e2e/build usam definição efêmera interna com `-f` explícito
+  e allowlists. Código e scripts npm do projeto são a fronteira confiada.
+- Portas efêmeras só são publicadas como `127.0.0.1:0` e descobertas por
+  ID/label depois do bind; `0.0.0.0` e alocação otimista são proibidos no host.
+  O app pode escutar a interface interna necessária à rede privada do container.
+- Contexto de build é materializado por allowlist; `.env.local`, `.zero`,
+  `.git`, `node_modules` e artefatos locais não chegam ao daemon.
+- Redaction é incremental, anterior a logs/renderização/limite e cobre segredos
+  divididos entre chunks de stdout e stderr.
+- Migrations, seed e aplicação usados por e2e/build recebem apenas ambiente
+  efêmero injetado; nenhum script pode carregar `.env.local` implicitamente.
+- `zero recover <run-id>` só remove recursos com intenção privada válida e ambos
+  os labels do mesmo run-id, após confirmação; ele é a recuperação de crash,
+  `SIGKILL` ou queda do daemon.
+- O gate de CI depende de autoridade verificável: `release-gate` exige todos os
+  jobs; waiver requer expiração, `CODEOWNERS`/branch protection ou Environment
+  GitHub com aprovadores. Arquivo versionado sem esta proteção é insuficiente.
 - Serviços, imagens, portas e argumentos são derivados de manifesto validado e
   de allowlists; nenhuma entrada do usuário escolhe recurso Docker arbitrário.
 - Nenhuma saída, envelope JSON, log ou artefato contém valores de `.env.local`,
@@ -32,7 +54,24 @@ usuário já tenha iniciado com `zero up`.
 
 ## Ordem de implementação
 
-### 1. Contrato de comandos, ajuda e testes de parsing
+### 1. Barreira Docker e fronteira de confiança
+
+Implementar em `packages/core` `assertTrustedLocalDockerTransport` antes de
+qualquer comando novo. Ela resolve o endpoint efetivo sem executar Docker,
+limpa `DOCKER_HOST`, `DOCKER_CONTEXT`, `DOCKER_CONFIG` e variáveis correlatas,
+aceita apenas socket Unix local em allowlist explícita, canônico e não-symlink,
+e constrói o ambiente mínimo para cada subprocesso. SSH, TCP, contexto remoto,
+socket inexistente ou symlink falham com código próprio.
+
+Migrar `up`, `down`, `status`, `logs` e `doctor` para o executor central e
+acrescentar testes de regressão para cada comando. Formalizar a fronteira:
+scripts/código do projeto são confiados; Compose, infraestrutura e contexto de
+build não são. E2e/build nunca interpretam `compose.yaml` do projeto.
+
+**Checkpoint:** nenhuma entrega da Sprint 4 depende da barreira declarada na
+Sprint 3 sem que ela exista, seja testada e proteja os comandos legados.
+
+### 2. Contrato de comandos, ajuda e testes de parsing
 
 Adicionar `test` e `build` em `packages/cli/src/main.ts`, com módulos próprios
 e contratos estritos:
@@ -40,6 +79,8 @@ e contratos estritos:
 - `zero test` aceita nenhuma opção;
 - `zero test --e2e` aceita exatamente a opção `--e2e`;
 - `zero build` aceita nenhuma opção;
+- `zero recover <run-id>` aceita exatamente um run-id hexadecimal conhecido e
+  requer confirmação; `--yes` só é permitido com o run-id explícito;
 - `--json` é aceito somente onde a saída estruturada já for suportada pelo
   contrato definitivo; durante execução que acompanha logs, deve falhar antes
   de iniciar subprocessos;
@@ -53,31 +94,41 @@ roteamento aos módulos novos.
 **Checkpoint:** a superfície pública é fechada e documentada antes de executar
 qualquer recurso externo.
 
-### 2. Executor seguro e ciclo de recursos efêmeros
+### 3. Executor seguro e ciclo de recursos efêmeros
 
 Extrair para `packages/core` um executor de subprocesso que:
 
 - recebe binário e argv tipados/validados, diretório canônico e ambiente mínimo;
-- captura stdout/stderr com limite de bytes e sanitiza antes de retornar;
+- drena stdout/stderr sem streaming direto, sanitiza incrementalmente antes de
+  retornar/persistir e só então limita bytes em memória;
 - recebe segredos somente de fonte privada e nunca os serializa;
 - conserva status, timeout e causa em estrutura segura para diagnóstico.
 
-Criar uma abstração de execução efêmera que gera identificador criptográfico,
-nomes de tag/rede/volume/container dentro de regex restrita e um diretório
-temporário privado. Ela registra recursos criados apenas em memória e oferece
-`cleanup()` idempotente em ordem reversa. Sinais e timeout chamam a mesma
-rotina; exceções de cleanup são agregadas sem perder a causa principal.
+Criar execução efêmera com `run-id` criptográfico, nomes dentro de regex,
+labels obrigatórias em imagem, container/serviço, rede e volume, e diretório
+privado. Persistir intenção não sensível antes de criar cada recurso e descobrir
+recursos por `run-id`+labels no cleanup; não usar `compose down --volumes` em
+arquivo do projeto. Implementar máquina de
+estados com `AbortController`, promessa de cleanup compartilhada, grace period e
+encerramento de grupo de processos; códigos distintos para cancelamento,
+timeout, falha original e falha de cleanup.
 
-Incorporar a barreira existente de transporte Docker local nessa camada e
-proibir que módulos de `test` e `build` usem `spawn` ou `spawnSync` diretamente.
+Definir a intenção em diretório global privado do usuário do Zero (`0700`) e
+arquivo `<run-id>.json` (`0600`). O schema estrito contém run-id, hash/diretório
+canônico do projeto, finalidade, recursos esperados e etapa, sem segredo. Usar
+criação/rename atômicos antes de cada recurso; reter somente intenção incompleta
+até recuperação manual e remover após cleanup completo. Recusar symlink,
+arquivo truncado, permissões inseguras, run-id desconhecido ou intenção que não
+pertença ao usuário/projeto. Testar crash entre intenção e criação.
 
-Testar limites de saída, corpus de secrets/URLs, timeout, repetição de cleanup,
-falha parcial de criação e rejeição de host/contexto Docker remoto.
+Proibir `spawn`/`spawnSync` direto nos módulos operacionais. Testar stream com
+segredos atravessando chunks, saída grande, sinais durante cada etapa, repetição
+de cleanup, crash simulado após intenção, falha parcial e daemon/contexto remoto.
 
 **Checkpoint:** qualquer caminho de falha deixa somente recursos efêmeros
 identificáveis, sem vazar configuração privada.
 
-### 3. Scripts e testes rápidos do template
+### 4. Scripts, locks e testes rápidos do template
 
 Completar o template com scripts explícitos e reproduzíveis para `lint`,
 `typecheck`, `test` e um agregador de validação rápida. Adicionar Vitest e React
@@ -88,35 +139,44 @@ Testing Library apenas se faltarem ao lock final e criar testes mínimos para:
 - adaptadores e rotas de exemplo do `complete`, incluindo limites de entrada e
   ausência de detalhes internos em erro.
 
-Fazer o scaffold renderizar arquivos, dependências, scripts e lock de modo
-profile-aware. O `essential` não inclui testes, rotas ou dependências exclusivos
-de `complete`. Atualizar as verificações de template, tarball e inventário.
+Gerar e validar locks separados a partir de manifests profile-aware controlados.
+O aceite inspeciona `package.json`, lock e árvore de `npm ci`: `essential` não
+inclui dependência, rota ou teste exclusivo de `complete`. Atualizar scaffold,
+`staticPaths`, tarball e inventário.
 
-`zero test` lê e valida o manifesto e executa exclusivamente o script rápido
-permitido via npm, com diretório e ambiente seguros. Não cria `.env.local`, não
-chama Docker e não altera `package-lock.json`.
+Separar os scripts Prisma: `db:migrate` e `db:seed` não usam `--env-file` nem
+leem `.env.local`; recebem ambiente injetado. `zero up` é o único orquestrador
+que lê o arquivo privado e injeta seus valores. Testar com `.env.local` sentinela
+que aponta ao banco persistente, provando que e2e/build só migram o banco efêmero.
+
+`zero test` lê e valida o manifesto e executa script rápido permitido via npm,
+com ambiente seguro. Não cria `.env.local`, chama Docker ou altera lock, mas
+documenta que o script do proprietário pode escrever em seus próprios arquivos.
 
 **Checkpoint:** projetos materializados dos dois perfis passam validação rápida
 em instalação limpa, e a CLI comprova que a execução não tem efeito de
 infraestrutura.
 
-### 4. `zero test --e2e` em ambiente isolado
+### 5. `zero test --e2e` no projeto atual, isolado da infraestrutura local
 
-Construir a fixture e2e a partir do template materializado no tarball, em
-diretório temporário que não seja o diretório do usuário. Gerar um manifesto
-declarativo de cada profile e executar a CLI instalada do artefato, não fontes
-do checkout. A fixture deve criar identidade própria e nunca registrar estado
-no projeto sob teste.
+O comando valida o projeto atual. Gerar compose efêmero interno com `-f`
+explícito, imagens externas por digest, services/mounts/capacidades/rede em
+allowlist e labels de `run-id`; nunca interpretar o Compose do projeto. Usar
+publicação `127.0.0.1:0` e descobrir portas por ID/label após bind.
 
 Para cada profile:
 
-1. instalar dependências de forma reprodutível;
-2. iniciar somente serviços permitidos em namespace temporário;
+1. usar dependências já instaladas, sem instalação oculta;
+2. iniciar somente serviços internos permitidos em namespace temporário;
 3. esperar health checks, aplicar migrations e seed;
 4. iniciar aplicação presa a loopback e confirmar página/`/api/health`;
 5. no `complete`, exercitar cache TTL, upload/listagem limitada e e-mail para
    `demo@local.test`;
 6. capturar diagnóstico sanitizado apenas em falha e limpar os recursos.
+
+Inspecionar a publicação Docker para afirmar `127.0.0.1` no host e nenhuma porta
+extra; permitir bind interno da aplicação necessário à rede privada e consultar
+o health pelo endpoint loopback descoberto.
 
 Adicionar testes de regressão que mantenham dois projetos locais `up` enquanto
 o e2e ocorre e comparem seus nomes Compose, portas e volumes antes/depois.
@@ -126,14 +186,23 @@ serviço degradado; todos devem executar cleanup e retornar código recuperável
 **Checkpoint:** os dois perfis têm prova e2e real, e um ambiente do usuário
 permanece inalterado mesmo quando a fixture falha.
 
-### 5. `zero build` e smoke test de produção
+Em paralelo, criar uma fixture exclusiva de CI que materializa o tarball e
+executa esse mesmo contrato em cada perfil. Ela verifica a distribuição; não é
+o comportamento de `zero test --e2e` no projeto atual.
 
-Definir um Dockerfile de produção reproduzível, de múltiplos estágios e sem
-`.env.local` no contexto. O build recebe tag efêmera gerada pela camada comum;
-nenhuma tag persistente ou publicação é permitida.
+### 6. `zero build` e smoke test de produção
+
+Definir Dockerfile de produção reproduzível e multiestágio, com dependências de
+produção separadas. O Dockerfile é código confiado do projeto, e isso é
+documentado/testado por alteração controlada; o Zero controla o contexto e o
+contrato observável, não suas instruções. Criar contexto efêmero por allowlist, além de `.dockerignore`
+obrigatório; inserir sentinela secreta nos testes e provar que ela não chega ao
+contexto, camadas (`docker image save`) ou artefatos. Build recebe tag efêmera,
+mas usa digest retornado pelo daemon; não há tag persistente ou publicação.
 
 Depois do build, criar pilha temporária com imagem recém-construída e PostgreSQL
-isolado. Executar migrations como etapa finita, iniciar aplicação, aguardar bind
+isolado. Executar migrations em container/estágio efêmero com Prisma, separado
+da imagem runtime, como etapa finita; iniciar aplicação, aguardar bind
 em loopback e consultar `/api/health` dentro de timeout. Para `complete`, subir
 Redis, storage e e-mail necessários para a forma saudável do health, sem
 duplicar os testes funcionais de exemplos do e2e.
@@ -146,22 +215,30 @@ temporárias.
 **Checkpoint:** `zero build` valida a imagem de produção sem modificar recursos
 locais persistentes e sem publicar artefatos.
 
-### 6. CI, gate Docker e release
+### 7. CI, gate Docker e release
 
-Adicionar `.github/workflows/ci.yml` ao template e, quando aplicável, ao
-repositório do Zero. Separar jobs de qualidade/pacote e Docker:
+Adicionar workflows distintos ao repositório Zero e ao template, ambos
+materializados/testados pelo scaffold quando pertinentes. O workflow do template
+roda apenas checks nativos em runner limpo (instalação, qualidade, testes e build
+Docker): ele não invoca `zero`, que não é dependência nem pacote publicado. O
+workflow do repositório Zero instala a CLI a partir do tarball do próprio
+checkout e separa jobs de qualidade/pacote e Docker:
 
 - qualidade: instalação limpa, formatação, lint, typecheck e testes unitários;
 - pacote: `npm pack`, instalação sem scripts e materialização do template do
   tarball;
 - Docker: matriz `essential`/`complete`, `zero test --e2e` e `zero build`.
 
-Configurar gatilhos de push e pull request, versões fixas das actions e
-permissões mínimas. Logs de Docker em falha passam primeiro pelo sanitizador e
-obedecem a limite de tamanho. Modelar waiver humano como arquivo versionado com
-identificador do job, justificativa, aprovador e data ISO de expiração; um job
-de gate falha quando o Docker não executa e não existe waiver válido. O waiver
-não é criado automaticamente pela CI.
+Configurar gatilhos, permissões mínimas e SHA completo de cada action. Logs de
+falha são sanitizados e limitados. Criar `release-gate` final dependente de
+todos os jobs, que falha em Docker skipped/cancelled/failure. Waiver contém job,
+justificativa, aprovador e expiração, mas é aceito somente com proteção externa
+documentada: `CODEOWNERS`+branch protection ou Environment com aprovadores.
+Documentar e verificar a configuração externa; o waiver não é criado pela CI.
+Implementar `release-gate` com `if: always()`: qualidade e pacote devem sempre
+estar em `success`; somente Docker pode ser liberado por waiver autorizado,
+válido e não expirado. Cobrir na fixture `success`, `failure`, `cancelled`,
+`skipped`, waiver expirado e waiver válido.
 
 Testar o workflow por análise estática e por fixture local que verifica matriz,
 permissões, ações pinadas, comandos previstos e regra de expiração.
@@ -169,7 +246,17 @@ permissões, ações pinadas, comandos previstos e regra de expiração.
 **Checkpoint:** a promoção só pode ocorrer com matriz Docker aprovada ou uma
 exceção humana verificável e ainda válida.
 
-### 7. Gauntlet e documentação final
+### 8. Recuperação limitada, gauntlet e documentação final
+
+Implementar `zero recover <run-id>` sobre a intenção privada registrada antes da
+criação. Ele lista primeiro imagem, container, rede e volume que tenham
+`zero.managed=true` **e** aquele run-id; confere tipo, finalidade e ownership,
+recusa itens extras e só remove depois da confirmação. Adicionar testes de crash
+após intenção e após cada criação, bem como recurso parecido sem todos os labels
+que não pode ser removido.
+
+Documentar que recuperação não é automática após `SIGKILL`/queda de daemon e que
+o run-id exibido é necessário para a ação limitada.
 
 Atualizar README, AGENTS.md, CLAUDE.md e ajuda gerada para explicar `zero test`,
 `zero test --e2e` e `zero build`, seus pré-requisitos, tempo esperado, escopo
@@ -186,7 +273,8 @@ npm pack --workspace @brunogaliza/zero
 Em Docker local confiável, executar o gauntlet:
 
 1. criar e manter dois projetos locais, um de cada profile, em execução;
-2. executar os três comandos de qualidade nas fixtures de ambos os perfis;
+2. executar os três comandos em projetos recém-criados de ambos os perfis e na
+   fixture de release materializada do tarball;
 3. interromper e induzir falhas de health/migration para verificar cleanup;
 4. buscar valores conhecidos de `.env.local` em stdout, stderr, JSON, logs e
    artefatos;
@@ -202,8 +290,9 @@ explica qualquer limitação reproduzível do ambiente de auditoria.
   e erros sanitizados.
 - Um projeto novo `essential` e um `complete` passam os três comandos em Docker
   local confiável.
-- E2e e build removem todos os próprios recursos mesmo em falha ou interrupção;
-  projetos, volumes e processos locais já existentes não sofrem alteração.
+- E2e e build removem todos os próprios recursos em falha, timeout ou sinais
+  capturáveis; após crash/SIGKILL, a recuperação limitada por labels/run-id não
+  atinge projetos, volumes ou processos locais existentes.
 - Imagens, comandos, logs, JSON e artefatos não revelam segredos nem incluem
   `.env.local`.
 - A CI reproduz qualidade, pacote e matriz Docker e impede promoção sem job
@@ -215,7 +304,7 @@ explica qualquer limitação reproduzível do ambiente de auditoria.
 | Risco | Mitigação |
 | --- | --- |
 | E2e lento ou instável | Timeouts explícitos, health checks determinísticos, diagnóstico limitado e reprodução local pelo mesmo comando. |
-| Cleanup remove recurso local | Identificador criptográfico por execução, registro em memória, allowlist estrita e testes com projetos ativos. |
-| CI ignora Docker por indisponibilidade | Job obrigatório e gate que só aceita waiver humano versionado e não expirado. |
-| Logs de falha expõem secret | Executor único com redaction antes da renderização, corpus adversarial e tamanho máximo. |
+| Cleanup remove recurso local | Labels+run-id, intenção persistida antes da criação, descoberta limitada e testes com projetos ativos. |
+| CI ignora Docker por indisponibilidade | `release-gate` obrigatório e waiver com autoridade externa verificável e expiração. |
+| Logs de falha expõem secret | Executor incremental antes da renderização, corpus por chunks e tamanho máximo posterior à sanitização. |
 | Build diverge do runtime | Smoke test contra imagem recém-construída, migrations e health no mesmo ambiente temporário. |
