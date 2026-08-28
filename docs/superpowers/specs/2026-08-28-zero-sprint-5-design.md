@@ -66,10 +66,17 @@ quarentena, usar `xattr` ou contornar Gatekeeper.
 1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
 2. abrir o Terminal e executar o preflight independente copiado do guia
    (`node --version`, `npm --version` e `docker version`); se algum comando
-   falhar, seguir o link oficial e a instrução concreta correspondente antes de
-   instalar o Zero. Somente npm `11.x` permite avançar; npm 10 ou 12+ mostra a
-   versão encontrada e o mesmo link oficial;
-3. instalar, abrir e aguardar Docker Desktop ficar pronto;
+   falhar, seguir o ramo correspondente antes de instalar o Zero. Para Node/npm
+   ausentes ou fora da faixa, o guia fornece link direto para o instalador oficial
+   macOS Apple Silicon do Node `26.x` fixado no manifesto da release, instrui
+   abrir o `.pkg`, avançar pelas telas padrão, fechar/abrir o Terminal e esperar
+   `node --version` `26.` e `npm --version` `11.`. Se o instalador não entregar
+   npm 11, a guia manda parar e reinstalar o pacote exato, nunca usar `npm -g`;
+3. para Docker ausente, o guia fornece link direto ao Docker Desktop para Apple
+   Silicon, instrui abrir o DMG, arrastar para Aplicativos, abrir Docker Desktop,
+   aprovar as telas padrão e aguardar o indicador “Engine running”; só avança
+   quando `docker version` mostrar Client e Server. Capturas obrigatórias cobrem
+   essas telas, Terminal reaberto e os resultados esperados;
 4. baixar o DMG para Downloads, abri-lo, arrastar `Zero Beta Installer.app` para
    Aplicativos e executar, antes da primeira abertura, o bloco completo copiado
    do guia; ele falha no primeiro erro de assinatura/Gatekeeper. Somente após os
@@ -103,13 +110,14 @@ abrir Terminal e reconhecer Docker Desktop pronto.
 `zero setup` continua somente leitura, mas distingue Docker ausente, instalado
 com Desktop parado, daemon inacessível, transporte remoto recusado e pronto.
 Explica o que falta, por que importa, link oficial e próxima ação. As faixas
-aceitas seguem o contrato atual: Node `24.x` ou `26.x` e npm `11.x`; qualquer
-outro major bloqueia criação/operação. Nova faixa só entra após gates de
-compatibilidade no preflight, instalador e `zero setup`; a implementação alinha
-`engines.node` a `^24 || ^26` e `engines.npm` a `>=11 <12`. Testes cobrem Node
-24, Node 26, npm 11 e versões antigas/incompatíveis. Em particular, Node 23,
-Node 27+, npm 10 e npm 12+ devem falhar, antes de instalar, criar ou operar, no
-preflight, instalador e CLI.
+A Sprint 5 altera o contrato para Node `24.x` ou `26.x` e npm `11.x`; qualquer
+outro major bloqueia criação/operação. A implementação atualiza ambos
+`package.json`, a validação de runtime de `zero setup` e a do instalador, e alinha
+`engines.node` a `^24 || ^26` e `engines.npm` a `>=11 <12`. Nova faixa só entra
+após gates de compatibilidade nesses três pontos. Testes cobrem Node 24, Node 26,
+npm 11 e versões antigas/incompatíveis. Em particular, Node 23, Node 27+, npm 10
+e npm 12+ devem falhar, antes de instalar, criar ou operar, no preflight,
+instalador e CLI.
 
 `zero report` gera `~/.zero/reports/zero-report.json` com arquivo `0600` e
 diretórios `~/.zero`/`reports` `0700`; substitui de forma atômica somente o
@@ -198,9 +206,12 @@ Exercita os dois ramos do guia: consentir e recusar PATH, incluindo rollback em
 ambos, e o fallback de PATH não resolvido. Falha de qualquer passo bloqueia a
 release; CI Linux continua complementar, não substituta.
 
-Um segundo Human Gate obrigatório inicia em usuário macOS Apple Silicon sem Node,
-npm ou Docker Desktop. Segue literalmente os ramos “ausente” do guia, instala os
-pré-requisitos pelas páginas e telas oficiais indicadas, fecha/abre o Terminal,
+Um segundo Human Gate obrigatório inicia em snapshot recém-provisionado de macOS
+Apple Silicon físico ou VM, sem Zero, Node, npm, Docker Desktop, Homebrew, Volta,
+fnm, nvm, asdf, Colima, caches ou PATH herdado. Antes do roteiro, registra que
+`command -v node npm docker` não encontra nada e que os diretórios desses
+gerenciadores não existem. Segue literalmente os ramos “ausente” do guia, instala
+os pré-requisitos pelas páginas e telas oficiais indicadas, fecha/abre o Terminal,
 abre Docker Desktop até o daemon ficar pronto, instala o Zero e conclui o primeiro
 projeto. Registra links/telas usados, versões detectadas, tempos e falhas; qualquer
 inferência não coberta ou falha bloqueia a publicação.
