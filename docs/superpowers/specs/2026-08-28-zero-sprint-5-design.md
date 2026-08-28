@@ -28,15 +28,23 @@ As notas registram SHA do commit, SHA-256, versão, ID do workflow, limitações
 canal de suporte e rollback. O workflow recusa versão divergente, asset existente
 ou falha em qualquer gate. Só o job de upload recebe `contents: write`.
 
-A chave pública e seu fingerprint ficam no repositório e chegam ao tester por
-canal independente do asset. A assinatura/hash são obrigatórios no gate; no guia
-para leigos, são recomendados com alternativa clara de confirmar o fingerprint
-com o suporte. Hash publicado junto ao asset não é tratado como autenticação.
+A chave pública canônica de release e seu fingerprint ficam embutidos no
+instalador; cópia idêntica fica no repositório e chega ao tester por canal
+independente do asset. O instalador nunca baixa chave de endpoint não autenticado.
+Rotação exige um release assinado pela chave anterior e uma nova versão do
+instalador contendo a nova chave; chave substituída, revogada ou sem cadeia de
+rotação interrompe a instalação. Assinatura e hash são obrigatórios no gate; hash
+publicado junto ao asset não é tratado como autenticação.
 
 ## Guia de beta
 
-O guia contém uma trilha única, com comandos concretos da release, em blocos de
-copiar e colar e resultado esperado após cada ação:
+O workflow gera e anexa `GUIA-BETA-pt-BR.md` a cada release; não há placeholders.
+O template obrigatório preenche URL exata do `.app`, caminho literal em Downloads,
+comando completo `spctl -a -vv "/Users/$USER/Downloads/Zero Beta Installer.app"`,
+Team ID, fingerprint, URL oficial de cada pré-requisito, caminho de `zero report`
+e texto esperado de sucesso/falha. Os valores a comparar chegam também pela
+mensagem de boas-vindas, em canal independente. O guia contém uma trilha única,
+em blocos de copiar e colar e resultado esperado após cada ação:
 
 1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
 2. abrir o Terminal e executar o preflight independente copiado do guia
@@ -44,8 +52,8 @@ copiar e colar e resultado esperado após cada ação:
    falhar, seguir o link oficial e a instrução concreta correspondente antes de
    instalar o Zero;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
-4. baixar e abrir `Zero Beta Installer.app`; antes de abrir, executar o comando
-   copiado `spctl -a -vv` e comparar Team ID/fingerprint com a mensagem de
+4. baixar `Zero Beta Installer.app` para Downloads e executar o comando completo
+   copiado do guia; comparar Team ID/fingerprint exibidos com a mensagem de
    boas-vindas recebida por canal independente; divergência interrompe o fluxo.
    O instalador verifica automaticamente
    assinatura, fingerprint, provenance e checksum antes de instalar o tarball
@@ -71,8 +79,11 @@ aceitas seguem o contrato atual: Node `>=24` e npm `>=11`; versões futuras só
 entram após gates de compatibilidade. Versão abaixo do mínimo bloqueia
 criação/operação; testes cobrem Node 24, Node 26 e versões antigas.
 
-`zero report` gera arquivo JSON `0600` em diretório previsível e privado do Zero
-e aceita somente allowlist de campos: versão Zero, versão macOS, arquitetura,
+`zero report` gera `~/.zero/reports/zero-report.json` com arquivo `0600` e
+diretórios `~/.zero`/`reports` `0700`; substitui de forma atômica somente o
+relatório anterior e nunca grava em outro local. Se não puder criar esse caminho,
+informa código estável sem imprimir dados diagnósticos e instrui o suporte. Aceita
+somente allowlist de campos: versão Zero, versão macOS, arquitetura,
 versões Node/npm/Docker, estados enumerados de `zero setup`, código estável do
 último comando e timestamp. Ele nunca inclui stdout/stderr, caminhos pessoais,
 mensagens brutas de subprocesso, `.env.local`, URLs, tokens, senhas ou logs. O
@@ -85,14 +96,25 @@ canal, responsável e prazo de resposta.
 O instalador não usa `npm -g`: instala em prefixo privado user-owned
 `~/.zero/cli/versions/vX.Y.Z`, testa o binário e cria shim estável
 `~/.zero/bin/zero`. Com consentimento, inclui `~/.zero/bin` no PATH; sem ele, o
-guia usa caminho completo. Finder não precisa herdar PATH de nvm/asdf: o
-instalador descobre Node/npm por caminhos aprovados e recusa incompatibilidade.
+guia usa `~/.zero/bin/zero`. Finder não precisa herdar PATH de nvm/asdf: procura,
+nesta ordem, pares `node`/`npm` em `/opt/homebrew/bin`, `/usr/local/bin`,
+`~/.nvm/versions/node/*/bin` e `~/.asdf/installs/nodejs/*/bin`; dentro de uma
+raiz escolhe a maior versão compatível, e entre raízes vence a primeira. Para
+instalação encontrada mas incompatível ou gerenciador fora da lista, para com o
+caminho encontrado e link oficial de instalação; testes cobrem múltiplas versões
+e processo gráfico sem PATH.
 
-Rollback é transacional: instala a versão anterior em staging, testa-a e verifica
-matriz CLI↔schema/template; só então troca `current` por rename atômico de
-symlink. Metadata anterior é mantida até confirmar o swap; falha restaura a
-referência anterior. Testes injetam falha em download, staging, swap e shim.
-Rollback não toca containers, volumes ou arquivos de projetos.
+O guia inclui a tela do instalador “Reverter para a versão anterior” e o comando
+equivalente `zero rollback --previous`. Ambos exibem versão-alvo, exigem
+confirmação e obtêm o artefato da release anterior pelos mesmos controles de
+assinatura, chave embutida e provenance. Rollback instala a versão anterior em
+staging, testa-a e verifica matriz CLI↔schema/template; só então troca `current`
+por rename atômico de symlink. Ao iniciar, qualquer instalação detecta `current`
+ausente ou staging abandonado, preserva a última referência válida registrada e
+mostra recuperação determinística. Metadata anterior é mantida até confirmar o
+swap; falha restaura a referência anterior. Testes injetam falha em download,
+staging, swap, shim e interrupção do processo. Rollback não toca containers,
+volumes ou arquivos de projetos.
 
 ## Controles verificáveis de publicação
 
@@ -104,12 +126,15 @@ workflow falha quando o autor/assinante/tag não pertence à allowlist.
 
 Além de `SHA256SUMS.asc`, o job emite atestação de proveniência DSSE vinculada ao
 digest do tarball, ao SHA do commit, à tag e ao ID do workflow, e a anexa como
-quarto asset `provenance.intoto.jsonl`. O gate aceita apenas issuer GitHub
-Actions, subject do repositório canônico, workflow path permitido fixado no SHA,
-predicate type SLSA aprovado e digest idêntico; testes adulteram cada campo. A
-instalação deve parar se a verificação de
-fingerprint, assinatura ou checksum falhar; o instalador apresenta a causa e
-orienta contatar suporte, sem instalar o arquivo.
+quarto asset `provenance.intoto.jsonl`. O gate e o instalador validam a assinatura
+DSSE com a raiz Sigstore confiável, certificado Fulcio e identidade OIDC; exigem
+issuer GitHub Actions, subject do repositório canônico, workflow path permitido,
+ref/tag exata, predicate type SLSA aprovado, digest idêntico e entrada de
+transparência Rekor com prova de inclusão válida. Ausência, assinatura inválida,
+certificado expirado/revogado ou campo fora da política falha fechado. Testes
+adulteram assinatura, certificado/identidade, inclusão e cada campo de política.
+A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
+apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
 `Zero Beta Installer.app` é asset operacional da release. É aplicação macOS
 universal, assinada e notarizada pela identidade de distribuição do Zero;
@@ -122,9 +147,11 @@ lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
 produz, assina, verifica e anexa o app junto aos assets.
 
 Antes de publicar, um Human Gate executa a trilha literal em Mac Apple Silicon
-limpo com Docker Desktop, registra versão macOS, tempos, screenshots dos passos
-visuais e saída sanitizada. Falha de qualquer passo bloqueia a release; CI Linux
-continua complementar, não substituta.
+sem Zero, checkout ou estado anterior, com macOS 14+, Node/npm compatíveis e
+Docker Desktop instalados pelo roteiro oficial. Registra as versões de macOS,
+Node, npm e Docker, tempos, screenshots dos passos visuais e saída sanitizada.
+Falha de qualquer passo bloqueia a release; CI Linux continua complementar, não
+substituta.
 
 ## Aceite
 
