@@ -20,9 +20,10 @@ registry npm, auto-update, telemetria, Linux/Windows, novos perfis ou cloud.
 Cada release `vX.Y.Z` nasce de tag Git anotada, assinada e protegida, apontando
 para o commit validado. O workflow, acionado somente por essa tag, executa em
 runner limpo: `npm run check`, gauntlet Docker dos dois perfis e teste de
-instalação limpa. Então gera uma única saída de `npm pack --ignore-scripts`,
-renomeia para `zero-vX.Y.Z.tgz`, cria `SHA256SUMS` e `SHA256SUMS.asc`, baixa o
-asset final e o valida antes de publicar.
+instalação limpa. Então gera uma única saída de
+`npm pack --workspace=@brunogaliza/zero --ignore-scripts`, renomeia para
+`zero-vX.Y.Z.tgz`, cria `SHA256SUMS` e `SHA256SUMS.asc`, baixa o asset final e o
+valida antes de publicar.
 
 As notas registram SHA do commit, SHA-256, versão, ID do workflow, limitações,
 canal de suporte e rollback. O workflow recusa versão divergente, asset existente
@@ -134,11 +135,16 @@ instrui anexar somente esse arquivo e informar a etapa. Notas da release definem
 canal, responsável e prazo de resposta.
 
 O instalador não usa `npm -g`: instala em prefixo privado user-owned
-`~/.zero/cli/versions/vX.Y.Z`, testa o binário e cria shim estável
-`~/.zero/bin/zero`. Após validar staging, a instalação inicial e toda atualização
-criam/trocam atomicamente `~/.zero/cli/current` para `versions/vX.Y.Z`; o shim é
-imutável e executa exclusivamente `~/.zero/cli/current/bin/zero`. Em macOS com
-zsh, com consentimento, inclui uma única linha marcada e idempotente em
+`~/.zero/cli/versions/vX.Y.Z`: em staging, executa
+`npm install --ignore-scripts --no-package-lock --prefix <staging> <tarball>` e
+localiza o binário em `<staging>/node_modules/.bin/zero`. Antes do swap, cria
+`<staging>/bin/zero`, wrapper executável que chama o Node aprovado pelo instalador
+e esse binário local; testa o wrapper com `--version` e `--help`. Só então move o
+staging para `versions/vX.Y.Z`, cria/troca atomicamente
+`~/.zero/cli/current` para essa versão e cria o shim estável
+`~/.zero/bin/zero`. O shim é imutável e executa exclusivamente
+`~/.zero/cli/current/bin/zero`. Em macOS com zsh, com consentimento, inclui uma
+única linha marcada e idempotente em
 `~/.zprofile`; mostra o arquivo alterado, pede fechar o Terminal aberto antes da
 instalação, abrir um novo e só seleciona a trilha `zero` depois de `command -v
 zero` apontar para `~/.zero/bin/zero`. Se o shell não for zsh, a edição falhar ou
