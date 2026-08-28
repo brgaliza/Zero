@@ -135,13 +135,15 @@ canal, responsável e prazo de resposta.
 
 O instalador não usa `npm -g`: instala em prefixo privado user-owned
 `~/.zero/cli/versions/vX.Y.Z`, testa o binário e cria shim estável
-`~/.zero/bin/zero`. Em macOS com zsh, com consentimento, inclui uma única linha
-marcada e idempotente em `~/.zprofile`; mostra o arquivo alterado, pede fechar o
-Terminal aberto antes da instalação, abrir um novo e só seleciona a trilha `zero`
-depois de `command -v zero` apontar para `~/.zero/bin/zero`. Se o shell não for
-zsh, a edição falhar ou o comando não resolver, não altera outro arquivo e
-seleciona a trilha integral `~/.zero/bin/zero`. Finder não precisa herdar PATH de
-nvm/asdf: procura,
+`~/.zero/bin/zero`. Após validar staging, a instalação inicial e toda atualização
+criam/trocam atomicamente `~/.zero/cli/current` para `versions/vX.Y.Z`; o shim é
+imutável e executa exclusivamente `~/.zero/cli/current/bin/zero`. Em macOS com
+zsh, com consentimento, inclui uma única linha marcada e idempotente em
+`~/.zprofile`; mostra o arquivo alterado, pede fechar o Terminal aberto antes da
+instalação, abrir um novo e só seleciona a trilha `zero` depois de `command -v
+zero` apontar para `~/.zero/bin/zero`. Se o shell não for zsh, a edição falhar ou
+o comando não resolver, não altera outro arquivo e seleciona a trilha integral
+`~/.zero/bin/zero`. Finder não precisa herdar PATH de nvm/asdf: procura,
 nesta ordem, pares `node`/`npm` em `/opt/homebrew/bin`, `/usr/local/bin`,
 `~/.nvm/versions/node/*/bin` e `~/.asdf/installs/nodejs/*/bin`; dentro de uma
 raiz escolhe a maior versão compatível, e entre raízes vence a primeira. Para
@@ -159,8 +161,10 @@ por rename atômico de symlink. Ao iniciar, qualquer instalação detecta `curre
 ausente ou staging abandonado, preserva a última referência válida registrada e
 mostra recuperação determinística. Metadata anterior é mantida até confirmar o
 swap; falha restaura a referência anterior. Testes injetam falha em download,
-staging, swap, shim e interrupção do processo. Rollback não toca containers,
-volumes ou arquivos de projetos.
+staging, swap, shim e interrupção do processo. Testes de instalação inicial,
+atualização e rollback confirmam que `zero --version` muda somente após o swap e
+preserva a versão anterior em falha. Rollback não toca containers, volumes ou
+arquivos de projetos.
 
 ## Controles verificáveis de publicação
 
