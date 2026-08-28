@@ -13,22 +13,27 @@ crie seu primeiro projeto `essential` sem acessar o repositório.
 
 ## Decisão de distribuição
 
-Cada release privada `vX.Y.Z` entrega três assets: `zero-vX.Y.Z.tgz`,
-`SHA256SUMS` e `GUIA-BETA-pt-BR.md`. O tester recebe o link privado da release
-e o SHA-256 exato em mensagem individual por canal independente previamente
-combinado com a equipe. Ele compara os três valores: mensagem, `SHA256SUMS` e
-resultado de `shasum`. Divergência interrompe a instalação. O hash confere
+Cada release privada `vX.Y.Z` entrega quatro assets:
+`zero-vX.Y.Z.tgz`, `zero-bootstrap-vX.Y.Z.cjs`, `SHA256SUMS` e
+`GUIA-BETA-pt-BR.md`. O bootstrap é o único arquivo executável que o tester roda
+antes de a CLI existir; ele é baixado junto ao tarball, mas não é extraído dele.
+O tester recebe o link privado da release e os dois SHA-256 exatos em mensagem
+individual por canal independente previamente combinado com a equipe. Ele compara
+cada valor com `SHA256SUMS` e com `shasum`. Divergência interrompe a instalação.
+O hash confere
 integridade e a mensagem externa autentica a referência esperada; a página de
 release nunca é a única fonte de confiança. Não há DMG, app macOS, Gatekeeper, certificado Apple,
 notarização, instalação por `sudo`, registry npm ou auto-update nesta sprint.
 
-O pacote é produzido por `npm pack --ignore-scripts` no workspace
-`@brunogaliza/zero`. Antes de qualquer tag, um workflow manual de candidate
-executa `npm run check`, gera o tarball determinístico, valida a versão interna e
-o inventário, e entrega um artefato privado para os Gates A e B. Só evidências
-aprovadas dos dois Gates permitem criar a tag protegida. O workflow de publicação
-da tag recria os assets do commit tagueado, confere tag, versão, nome e checksum
-e cria uma GitHub Release privada; somente esse job recebe `contents: write`.
+O pacote e o bootstrap são produzidos deterministicamente no mesmo commit.
+Antes de qualquer tag, um workflow manual de candidate recebe SHA e versão,
+executa `npm run check`, gera os dois assets, valida versão/inventário/digest e
+emite um atestado contendo SHA, versão, hashes e ID de run. O candidate entra em
+Environment com dois revisores e entrega seus assets privados para os Gates A e
+B. A tag anotada só é permitida depois: sua mensagem precisa declarar o ID do
+candidate. O workflow de publicação lê esse ID, consulta o atestado do run,
+exige conclusão aprovada e exige correspondência exata entre SHA do candidate,
+commit da tag, versão e hashes recriados. Qualquer divergência bloqueia a release.
 
 ## Fluxo literal do beta tester
 
@@ -45,11 +50,13 @@ que fazer se falhar.
    e Server, o guia abre o link oficial do Docker Desktop para Apple Silicon,
    instrui abrir o app e aguardar **Engine running** antes de repetir o bloco.
 3. O tester baixa `zero-vX.Y.Z.tgz` da release privada no navegador. No Terminal,
-   executa um bloco que cria uma pasta privada em Downloads, move o arquivo para
-   ela, calcula `shasum -a 256` e interrompe se o valor não for exatamente o
-   checksum da mensagem externa e do guia.
-4. Depois da conferência, o tester executa um instalador local entregue dentro do
-   próprio tarball. Ele extrai somente o inventário permitido para staging `0700`,
+   executa um bloco que cria uma pasta privada em Downloads, move os dois arquivos
+   para ela, calcula `shasum -a 256` e interrompe se algum valor não for exatamente
+   o checksum da mensagem externa e do guia.
+4. Depois da conferência, o tester executa o bootstrap separado com `node`. Ele
+   recebe o caminho do tarball e os hashes esperados de tarball e bootstrap, recusa argumentos extras
+   e usa npm local em modo offline, sem scripts, audit, fund ou configurações do
+   usuário, somente para materializar o pacote já conferido. Ele extrai somente o inventário permitido para staging `0700`,
    valida versão e arquivos, instala sob `~/.zero/cli/versions/vX.Y.Z`, troca
    `~/.zero/cli/current` atomicamente e cria `~/.zero/bin/zero`. Não executa
    lifecycle scripts nem usa instalação global do npm. O instalador oferece
