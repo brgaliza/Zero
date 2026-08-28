@@ -1,42 +1,43 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+const allowed = new Set([
+  "--version",
+  "--release-url",
+  "--sha256",
+  "--bootstrap-sha256",
+  "--output",
+]);
 const values = new Map();
 for (let index = 2; index < process.argv.length; index += 2) {
   const key = process.argv[index];
   const value = process.argv[index + 1];
-  if (key?.startsWith("--") && value !== undefined) values.set(key, value);
+  if (key === undefined || value === undefined || !allowed.has(key) || values.has(key))
+    throw new Error("Argumentos do guia inválidos.");
+  values.set(key, value);
 }
 const version = values.get("--version");
-const dmgUrl = values.get("--dmg-url");
-const dmgSha256 = values.get("--dmg-sha256");
-const teamId = values.get("--team-id");
+const releaseUrl = values.get("--release-url");
+const sha256 = values.get("--sha256");
+const bootstrapSha256 = values.get("--bootstrap-sha256");
 const output = values.get("--output") ?? "dist/GUIA-BETA-pt-BR.md";
-if (
-  ![version, dmgUrl, dmgSha256, teamId].every(
-    (value) => typeof value === "string" && value.length > 0,
-  )
-)
-  throw new Error("Use --version, --dmg-url, --dmg-sha256 e --team-id.");
-if (!/^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u.test(version))
-  throw new Error("A versão deve usar o formato vX.Y.Z.");
-let parsedDmgUrl;
-try {
-  parsedDmgUrl = new URL(dmgUrl);
-} catch {
-  throw new Error("A URL do DMG deve ser válida.");
-}
-if (parsedDmgUrl.protocol !== "https:" || /[\s<>`]/u.test(dmgUrl))
-  throw new Error("A URL do DMG deve usar HTTPS seguro.");
-if (!/^[a-f0-9]{64}$/u.test(dmgSha256))
-  throw new Error("O SHA-256 do DMG deve ter 64 caracteres hexadecimais.");
-if (!/^[A-Z0-9]{10}$/u.test(teamId)) throw new Error("O Team ID da Apple é inválido.");
+if (!/^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u.test(version ?? "")) throw new Error("Versão inválida.");
+if (!/^https:\/\/[^\s<>`]+$/u.test(releaseUrl ?? ""))
+  throw new Error("A URL da release deve usar HTTPS.");
+if (![sha256, bootstrapSha256].every((value) => /^[a-f0-9]{64}$/u.test(value ?? "")))
+  throw new Error("Os checksums devem ter 64 caracteres hexadecimais.");
 const guide = `# Zero Beta ${version}
 
-## Antes de começar
+## Antes de ler este guia
 
-Use Mac Apple Silicon, macOS 14+, 10 GB livres e internet estável. Abra Terminal
-(Command + Espaço, Terminal, Enter) e copie:
+Use a mensagem de convite recebida da equipe para conferir o SHA-256 de
+\`release-manifest.json\`. Baixe o manifesto e este guia da release privada,
+confira os dois com \`shasum -a 256\` e só prossiga se coincidirem com o manifesto
+e com a mensagem. Se houver qualquer diferença, pare e peça um novo link.
+
+## Prepare o Mac
+
+Abra Terminal: pressione Command + Espaço, digite \`Terminal\` e Enter. Copie:
 
 \`\`\`sh
 node --version
@@ -44,44 +45,31 @@ npm --version
 docker version
 \`\`\`
 
-Avance somente com Node 24 ou 26, npm 11 e Docker mostrando Client e Server.
-Se necessário, instale Node em https://nodejs.org/en/download e Docker Desktop em
-https://docs.docker.com/desktop/setup/install/mac-install/, abra-o e aguarde
-**Engine running**.
+Você precisa de Node 24 ou 26, npm 11 e Docker mostrando Client e Server. Se
+algum faltar, instale Node em https://nodejs.org/en/download e Docker Desktop em
+https://docs.docker.com/desktop/setup/install/mac-install/. Abra Docker Desktop e
+espere **Engine running**; depois feche e abra Terminal novamente.
 
-## Instale com segurança
+## Instale o Zero
 
-Baixe ${dmgUrl}. Em Downloads, abra Terminal e copie este bloco para confirmar que
-o arquivo baixado é o correto (o resultado deve começar com ${dmgSha256}):
-
-\`\`\`sh
-shasum -a 256 "$HOME/Downloads/Zero-Beta-${version}.dmg"
-\`\`\`
-
-Se o nome do arquivo estiver diferente, arraste o DMG para a janela do Terminal no
-lugar do trecho entre aspas. Somente então abra o DMG e arraste **Zero Beta
-Installer.app** para Aplicativos. No Terminal, copie este bloco antes de abrir o
-aplicativo:
+Abra ${releaseUrl} no navegador e baixe \`zero-${version}.tgz\` e
+\`zero-bootstrap-${version}.cjs\`. No Terminal, copie:
 
 \`\`\`sh
-codesign --verify --deep --strict --verbose=2 "/Applications/Zero Beta Installer.app" && spctl -a -vv -t execute "/Applications/Zero Beta Installer.app" && codesign -dv --verbose=4 "/Applications/Zero Beta Installer.app" 2>&1
+mkdir -p "$HOME/Downloads/zero-beta-${version}" && mv "$HOME/Downloads/zero-${version}.tgz" "$HOME/Downloads/zero-bootstrap-${version}.cjs" "$HOME/Downloads/zero-beta-${version}/" && cd "$HOME/Downloads/zero-beta-${version}" && shasum -a 256 zero-${version}.tgz zero-bootstrap-${version}.cjs
 \`\`\`
 
-O resultado deve ser aceito e conter \`TeamIdentifier=${teamId}\`. Compare com a
-mensagem de boas-vindas recebida por canal independente. Se divergir, pare.
-
-## Crie o primeiro projeto
-
-Abra o instalador, aceite o PATH, feche/abra Terminal e copie:
+O primeiro resultado deve começar com \`${sha256}\` e o segundo com
+\`${bootstrapSha256}\`. Se não coincidirem, pare. Se coincidirem, copie:
 
 \`\`\`sh
-zero --version
-zero setup
-zero new
+node "zero-bootstrap-${version}.cjs" --tarball "zero-${version}.tgz" --version "${version}" --sha256 "${sha256}" --bootstrap-sha256 "${bootstrapSha256}"
 \`\`\`
 
-Responda às perguntas e copie o próximo bloco exibido pelo Zero. Para suporte use
-\`zero report\`; para voltar à versão local anterior use \`zero rollback --previous\`.
+Depois, feche e abra Terminal. Se escolher PATH, copie \`zero setup\`; se não,
+copie \`~/.zero/bin/zero setup\`. Em seguida use \`zero new\` (ou o caminho
+absoluto), responda às perguntas e siga o próximo comando mostrado. Para suporte,
+use \`zero report\`; para voltar à versão anterior, \`zero rollback --previous\`.
 `;
 await mkdir(resolve(output, ".."), { recursive: true });
 await writeFile(resolve(output), guide, "utf8");
