@@ -264,8 +264,9 @@ caller e SHA do signer, Team ID e fingerprint Developer ID, fingerprint da chave
 release, versão/digest do trust bundle e issuer/audience/chave do broker. CI, HSM e
 instalador recusam política ausente, valor-modelo ou campo que não corresponda
 exatamente; só tag/versão do release é variável e é validada contra `ref`/`sha`.
-A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
-apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
+A instalação é interrompida se qualquer verificação de fingerprint, assinatura,
+provenance ou checksum falhar; apresenta a causa e orienta contatar suporte, sem
+instalar o arquivo.
 
 `Zero-Beta-Installer-vX.Y.Z.dmg` é o asset operacional da release e contém
 `Zero Beta Installer.app`. A aplicação macOS universal é assinada e notarizada
