@@ -33,12 +33,16 @@ rollback atômico.
    traversal, duplicidade ou Unicode ambíguo, com limites de entradas/tamanho.
    Testar TOCTOU, cada tipo proibido e archive bomb.
 
-5. **Política e cerimônia de confiança.** Antes de qualquer release ou instalador,
+5. **Fundação de release, política e cerimônia de confiança.** Antes de qualquer
+   instalador, criar/pinar caller e signer reutilizável, gerar deterministicamente
+   o tarball e seu digest/manifesto de política (sem publicar). Então,
    criar
    `release-policy.v1.json` JCS concreto e compilado no app, trust bundle Fulcio/
    Rekor, chave pública/rotação e inventário. Provisionar HSM remoto por OIDC,
    Developer ID/notarização, broker JWS de dois aprovadores, GitHub App read-only
-   e Environment; testar política sem curingas/valores-modelo, todos os claims
+   e Environment. Entregar contrato versionado do HSM/broker, administração fora
+   do repositório, procedimento de bootstrap e evidência de separação dos jobs de
+   assinatura/notarização; testar política sem curingas/valores-modelo, todos os claims
    OIDC, dois humanos externos ao actor/tag, JWS anti-replay/TTL/reconsulta e
    auditoria imutável, além de negação para PR/fork/claim/review inválidos.
 
@@ -55,15 +59,16 @@ rollback atômico.
    `codesign` + `spctl`, TeamIdentifier e comparação com canal independente,
    interrompendo o fluxo em divergência.
 
-8. **Pipeline de release.** Só agora criar caller por tag → signer reutilizável
-   SHA-pinado, draft de release, tarball/DMG/guia/checksum/assinatura/Sigstore e
+8. **Pipeline de release.** Só agora criar draft de release,
+   DMG/guia/checksum/assinatura/Sigstore a partir das fundações pinadas e
    validação do asset baixado antes de publicar. Cobrir DSSE/Fulcio/Rekor offline,
    claims/OIDs, checkpoint e adulteração de todos os campos. Exigir tag anotada,
    assinada e protegida, versão/commit corretos e recusar tag, versão ou asset
    divergente antes de publicar.
 
-9. **Gates.** Automatizar checks e fixtures; executar Human Gate em Mac limpo com
-   Node 24 e 26/npm11, PATH aceito/recusado/fallback e rollback; e snapshot sem
+9. **Gates.** Automatizar checks e fixtures; executar dois Human Gates isolados,
+   um em Node 24/npm11 e outro em Node 26/npm11, cada qual com PATH
+   aceito/recusado/fallback e rollback; e snapshot sem
    Node/npm/Docker/gerenciadores, comprovando ausência e seguindo links/telas.
    Ambos validam asset do draft, executam literalmente o bloco `codesign`/`spctl`
    e comparam Team ID pelo canal independente; fixtures e gate cobrem manifesto e
