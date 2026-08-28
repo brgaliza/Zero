@@ -103,12 +103,13 @@ abrir Terminal e reconhecer Docker Desktop pronto.
 `zero setup` continua somente leitura, mas distingue Docker ausente, instalado
 com Desktop parado, daemon inacessível, transporte remoto recusado e pronto.
 Explica o que falta, por que importa, link oficial e próxima ação. As faixas
-aceitas seguem o contrato atual: Node `>=24` e npm `11.x`; qualquer outro major
-de npm bloqueia criação/operação. Nova faixa só entra após gates de compatibilidade
-no preflight, instalador e `zero setup`; a implementação também alinha
-`engines.npm` a `>=11 <12`. Testes cobrem Node 24, Node 26, npm 11 e versões
-antigas/incompatíveis. Em particular, npm 10 e npm 12+ devem falhar, antes de
-instalar, criar ou operar, no preflight, instalador e CLI.
+aceitas seguem o contrato atual: Node `24.x` ou `26.x` e npm `11.x`; qualquer
+outro major bloqueia criação/operação. Nova faixa só entra após gates de
+compatibilidade no preflight, instalador e `zero setup`; a implementação alinha
+`engines.node` a `^24 || ^26` e `engines.npm` a `>=11 <12`. Testes cobrem Node
+24, Node 26, npm 11 e versões antigas/incompatíveis. Em particular, Node 23,
+Node 27+, npm 10 e npm 12+ devem falhar, antes de instalar, criar ou operar, no
+preflight, instalador e CLI.
 
 `zero report` gera `~/.zero/reports/zero-report.json` com arquivo `0600` e
 diretórios `~/.zero`/`reports` `0700`; substitui de forma atômica somente o
@@ -197,6 +198,13 @@ Exercita os dois ramos do guia: consentir e recusar PATH, incluindo rollback em
 ambos, e o fallback de PATH não resolvido. Falha de qualquer passo bloqueia a
 release; CI Linux continua complementar, não substituta.
 
+Um segundo Human Gate obrigatório inicia em usuário macOS Apple Silicon sem Node,
+npm ou Docker Desktop. Segue literalmente os ramos “ausente” do guia, instala os
+pré-requisitos pelas páginas e telas oficiais indicadas, fecha/abre o Terminal,
+abre Docker Desktop até o daemon ficar pronto, instala o Zero e conclui o primeiro
+projeto. Registra links/telas usados, versões detectadas, tempos e falhas; qualquer
+inferência não coberta ou falha bloqueia a publicação.
+
 ## Aceite
 
 - A release publicada contém DMG do instalador macOS, tarball, checksum, assinatura e
@@ -209,7 +217,9 @@ release; CI Linux continua complementar, não substituta.
   quanto a trilha integral com `~/.zero/bin/zero`.
 - O Human Gate copia, sem edição manual, o bloco de criação e o bloco de entrada/
   `up` impressos pela CLI; npm 10 e npm 12+ falham antes de instalar, criar ou
-  operar, e npm 11 conclui a trilha.
+  operar, Node 23 e 27+ falham, e Node 24/26 com npm 11 conclui a trilha.
+- Um segundo Human Gate, sem Node/npm/Docker Desktop no usuário inicial, instala
+  os pré-requisitos apenas pelo guia e conclui o primeiro projeto sem inferência.
 - O fluxo principal precisa concluir para aceitar a sprint. Relato seguro é
   métrica de suporte, não substituto do sucesso.
 - Teste de instalação limpa, pacote, gauntlet Docker e validação do asset final
