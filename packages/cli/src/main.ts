@@ -5,6 +5,7 @@ type ProbeResult =
   | { readonly kind: "detected"; readonly version: string }
   | { readonly kind: "missing" }
   | { readonly kind: "unknown" };
+type DockerProbeResult = "ready" | "missing" | "desktop-stopped" | "daemon-unreachable" | "remote-refused" | "unknown";
 
 const OFFICIAL_URLS = {
   docker: "https://docs.docker.com/desktop/setup/install/mac-install/",
@@ -46,6 +47,7 @@ interface CommandResult {
 export interface CliRuntime {
   readonly nodeVersion: string;
   probe(command: "npm" | "docker" | "git" | "gh"): ProbeResult;
+  probeDocker?(): DockerProbeResult;
 }
 
 function getVersion(): string {
@@ -74,6 +76,16 @@ function defaultRuntime(): CliRuntime {
       }
       const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.trim();
       return output.length > 0 ? { kind: "detected", version: output } : { kind: "unknown" };
+    },
+    probeDocker() {
+      const installed = this.probe("docker");
+      if (installed.kind === "missing") return "missing";
+      if (installed.kind !== "detected") return "unknown";
+      const result = spawnSync("docker", ["version", "--format", "{{.Server.Version}}"], { encoding: "utf8", shell: false, timeout: 2_000 });
+      if (result.status === 0) return "ready";
+      if (/^(ssh|tcp):\/\//u.test(process.env.DOCKER_HOST ?? "")) return "remote-refused";
+      const output = `${result.stdout ?? ""}${result.stderr ?? ""}`.toLowerCase();
+      return output.includes("cannot connect") ? "desktop-stopped" : "daemon-unreachable";
     },
   };
 }
@@ -184,7 +196,7 @@ function setupChecks(runtime: CliRuntime): readonly SetupCheck[] {
   const nodeMajor = major(runtime.nodeVersion);
   const npm = runtime.probe("npm");
   const npmMajor = npm.kind === "detected" ? major(npm.version) : undefined;
-  const docker = runtime.probe("docker");
+  const docker = runtime.probeDocker?.() ?? (runtime.probe("docker").kind === "detected" ? "ready" : runtime.probe("docker").kind);
   const git = runtime.probe("git");
   const github = runtime.probe("gh");
 
@@ -225,18 +237,24 @@ function setupChecks(runtime: CliRuntime): readonly SetupCheck[] {
       id: "docker",
       label: "Docker",
       state:
-        docker.kind === "unknown" ? "unknown" : docker.kind === "detected" ? "ready" : "blocked",
+        docker === "ready" ? "ready" : docker === "unknown" ? "unknown" : "blocked",
       detail:
-        docker.kind === "unknown"
+        docker === "unknown"
           ? "Não foi possível verificar o Docker."
-          : docker.kind === "missing"
+          : docker === "missing"
             ? "Docker é necessário para o ciclo local da Sprint 2."
+            : docker === "desktop-stopped" ? "Docker Desktop está instalado, mas ainda não está pronto."
+            : docker === "remote-refused" ? "O transporte Docker remoto não é aceito pelo Zero."
+            : docker === "daemon-unreachable" ? "O daemon Docker não está acessível."
             : "Disponível para o ciclo local.",
       action:
-        docker.kind === "unknown"
+        docker === "unknown"
           ? "Verifique permissões e execute zero setup novamente."
-          : docker.kind === "detected"
+          : docker === "ready"
             ? "Nenhuma ação necessária."
+            : docker === "desktop-stopped" ? "Abra o Docker Desktop e aguarde o Engine running."
+            : docker === "remote-refused" ? "Use o Docker Desktop local, sem transporte remoto."
+            : docker === "daemon-unreachable" ? "Abra o Docker Desktop e confirme o daemon local."
             : "Instale e inicie o Docker Desktop antes de continuar.",
       url: OFFICIAL_URLS.docker,
     },
