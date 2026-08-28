@@ -1,4 +1,4 @@
-import { chmod, mkdir, open, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, open, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const VERSION = /^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u;
@@ -21,6 +21,22 @@ export async function acquireInstallLock(rootDirectory: string): Promise<() => P
     throw error;
   }
   return async () => { await rm(lock, { force: true }); };
+}
+
+export async function createPrivateStaging(rootDirectory: string): Promise<string> {
+  const stagingRoot = join(rootDirectory, "cli", "staging");
+  await mkdir(stagingRoot, { recursive: true, mode: 0o700 });
+  await chmod(stagingRoot, 0o700);
+  const staging = await mkdtemp(join(stagingRoot, "install-"));
+  await chmod(staging, 0o700);
+  return staging;
+}
+
+export async function promoteStaging(rootDirectory: string, staging: string, version: string): Promise<void> {
+  const destination = versionDirectory(rootDirectory, version);
+  await mkdir(join(rootDirectory, "cli", "versions"), { recursive: true, mode: 0o700 });
+  await rename(staging, destination);
+  await activateInstalledVersion(rootDirectory, version);
 }
 
 export async function activateInstalledVersion(rootDirectory: string, version: string): Promise<void> {

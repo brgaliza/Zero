@@ -2,7 +2,7 @@ import { lstat, mkdtemp, readlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { acquireInstallLock, activateInstalledVersion, versionDirectory } from "../src/installer.js";
+import { acquireInstallLock, activateInstalledVersion, createPrivateStaging, promoteStaging, versionDirectory } from "../src/installer.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true }))); });
@@ -29,5 +29,14 @@ describe("installer layout", () => {
     await expect(acquireInstallLock(root)).rejects.toThrow("Outra operação");
     await release();
     await expect(acquireInstallLock(root)).resolves.toBeTypeOf("function");
+  });
+
+  it("promove staging somente para a versão declarada", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zero-installer-"));
+    roots.push(root);
+    const staging = await createPrivateStaging(root);
+    await promoteStaging(root, staging, "v1.2.3");
+    expect(await readlink(join(root, "cli", "current"))).toBe(versionDirectory(root, "v1.2.3"));
+    expect((await stat(versionDirectory(root, "v1.2.3"))).isDirectory()).toBe(true);
   });
 });
