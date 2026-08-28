@@ -32,6 +32,7 @@ describe("template next-fullstack/essential", () => {
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
       engines: Record<string, string>;
+      scripts: Record<string, string>;
     };
     const lock = JSON.parse(await readTemplateFile("package-lock.json")) as {
       lockfileVersion: number;
@@ -50,6 +51,8 @@ describe("template next-fullstack/essential", () => {
       "@prisma/client": "6.12.0",
     });
     expect(packageMetadata.devDependencies.prisma).toBe("6.12.0");
+    expect(packageMetadata.scripts["db:migrate"]).toBe("prisma migrate deploy");
+    expect(packageMetadata.scripts["db:seed"]).toBe("prisma db seed");
     expect(lock.lockfileVersion).toBe(3);
     expect(lock.packages[""]).toBeDefined();
     expect(templateLock).toEqual({
@@ -58,17 +61,17 @@ describe("template next-fullstack/essential", () => {
       cliVersion: "0.1.0",
     });
     expect(environmentExample).toContain("DATABASE_URL=");
-    expect(environmentExample).not.toMatch(/postgres:postgres|password=|secret=/iu);
+    expect(environmentExample).toContain("ZERO_POSTGRES_PASSWORD=");
+    expect(environmentExample).not.toMatch(/postgres:postgres|password=postgres|secret=\S+/iu);
   });
 
-  it("explica em português que o scaffold ainda não executa o ambiente", async () => {
+  it("documenta em português o ciclo local do ambiente", async () => {
     const documents = await Promise.all(
       ["README.md", "AGENTS.md", "CLAUDE.md"].map((path) => readTemplateFile(path)),
     );
 
-    expect(documents.join("\n")).toContain("pré-execução");
-    expect(documents.join("\n")).toContain("Sprint 1");
-    expect(documents.join("\n")).toMatch(/nenhum processo está em\s+execução/u);
+    expect(documents.join("\n")).toContain("zero up");
+    expect(documents.join("\n")).toContain(".env.local");
   });
 
   it("mantém o arquivo de transporte do tarball igual ao .gitignore final", async () => {
@@ -115,5 +118,33 @@ describe("template next-fullstack/essential", () => {
     expect(contentsFor("README.md")).toContain('Café "Nova"');
     expect(contentsFor("app/layout.tsx")).toContain(JSON.stringify(manifest.project.name));
     expect(contentsFor("app/page.tsx")).toContain(JSON.stringify(manifest.project.description));
+  });
+
+  it("materializa dependências opcionais somente no perfil complete", async () => {
+    const manifest = createProjectManifest({
+      schemaVersion: 1,
+      project: {
+        name: "Completo",
+        slug: "completo",
+        description: "Serviços locais.",
+        directory: "completo",
+      },
+      profile: "complete",
+      initialization: { start: false, git: false, github: { createPrivateRepository: false } },
+    });
+    const files = renderEssentialProjectFiles({
+      manifest,
+      templateLock: JSON.parse(await readTemplateFile(".zero/template.lock.json")),
+      packageLock: await readTemplateFile("package-lock.json"),
+    });
+    const packageFile = files.find((file) => file.path === "package.json");
+    if (packageFile === undefined || typeof packageFile.contents !== "string")
+      throw new Error("package ausente");
+
+    expect(JSON.parse(packageFile.contents).dependencies).toMatchObject({
+      ioredis: "6.0.0",
+      nodemailer: "9.0.6",
+      "@aws-sdk/client-s3": "3.1120.0",
+    });
   });
 });

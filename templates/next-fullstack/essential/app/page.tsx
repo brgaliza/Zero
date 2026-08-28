@@ -2,11 +2,8 @@ export default function HomePage() {
   return (
     <main>
       <p>Projeto Zero Essential</p>
-      <h1>Fundação criada com segurança</h1>
-      <p>
-        Este projeto está em pré-execução. A configuração do ambiente local será entregue em uma
-        próxima sprint.
-      </p>
+      <h1>Ambiente local pronto para desenvolvimento</h1>
+      <p>Use zero status para acompanhar os serviços locais.</p>
     </main>
   );
 }

@@ -4,10 +4,10 @@ Esta é a fundação estática do arquétipo `next-fullstack` no perfil `essenti
 
 ## Estado desta geração
 
-Este projeto ainda está em **pré-execução**. A Sprint 1 cria contratos, código
-estático e dependências fixadas, mas não instala dependências, não cria
-`.env.local`, não gera secrets, não inicia Docker/PostgreSQL e não executa
-migrations. Um ambiente local funcional é uma entrega da Sprint 2.
+O Zero inicia o ambiente local com `zero up`: cria `.env.local` somente se ele
+não existir, inicia PostgreSQL, aplica migrations e seed, e mantém a aplicação
+em primeiro plano. `zero down` encerra apenas a infraestrutura do projeto e
+preserva os volumes.
 
 `zero.yaml` registra o contrato portátil do projeto. `.zero/template.lock.json`
 registra a proveniência do template. `.env.example` contém somente nomes e um

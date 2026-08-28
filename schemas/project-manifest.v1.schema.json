@@ -49,15 +49,15 @@
         "orm": { "const": "prisma" }
       }
     },
-    "profile": { "const": "essential" },
+    "profile": { "enum": ["essential", "complete"] },
     "services": {
       "type": "object",
       "additionalProperties": false,
       "required": ["redis", "storage", "email"],
       "properties": {
-        "redis": { "const": false },
-        "storage": { "const": false },
-        "email": { "const": false }
+        "redis": { "type": "boolean" },
+        "storage": { "type": "boolean" },
+        "email": { "type": "boolean" }
       }
     },
     "capabilities": {
@@ -72,5 +72,35 @@
       "required": ["path"],
       "properties": { "path": { "const": "/api/health" } }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "profile": { "const": "essential" } } },
+      "then": {
+        "properties": {
+          "services": {
+            "properties": {
+              "redis": { "const": false },
+              "storage": { "const": false },
+              "email": { "const": false }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "profile": { "const": "complete" } } },
+      "then": {
+        "properties": {
+          "services": {
+            "properties": {
+              "redis": { "const": true },
+              "storage": { "const": true },
+              "email": { "const": true }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

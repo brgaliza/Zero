@@ -54,10 +54,26 @@ describe("run", () => {
       expect.arrayContaining([
         expect.objectContaining({ id: "node", state: "ready" }),
         expect.objectContaining({ id: "npm", state: "ready" }),
-        expect.objectContaining({ id: "docker", state: "future" }),
+        expect.objectContaining({ id: "docker", state: "blocked" }),
       ]),
     );
     expect(probe).toHaveBeenCalledWith("npm");
+    write.mockRestore();
+  });
+
+  it("aceita Node.js 26 e mantém Node.js 23 como bloqueador", async () => {
+    const write = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const probe = vi.fn(() => ({ kind: "detected" as const, version: "11.17.0" }));
+
+    expect(await run(["setup", "--json"], { nodeVersion: "v26.5.0", probe })).toBe(0);
+    expect(JSON.parse(write.mock.calls[0]?.[0] as string)).toMatchObject({
+      checks: expect.arrayContaining([expect.objectContaining({ id: "node", state: "ready" })]),
+    });
+
+    expect(await run(["setup", "--json"], { nodeVersion: "v23.11.0", probe })).toBe(0);
+    expect(JSON.parse(write.mock.calls[1]?.[0] as string)).toMatchObject({
+      checks: expect.arrayContaining([expect.objectContaining({ id: "node", state: "blocked" })]),
+    });
     write.mockRestore();
   });
 

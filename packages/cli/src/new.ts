@@ -1,10 +1,11 @@
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import {
   createProjectManifest,
   ManifestValidationError,
+  parseProjectManifest,
   parseNewProjectConfig,
   type NewProjectConfig,
   type TemplateLock,
@@ -16,17 +17,42 @@ import {
   ScaffoldError,
   type TemplateFile,
 } from "../../scaffold/src/index.js";
+import {
+  completeStage,
+  createLocalProjectIdentity,
+  createLocalOperationState,
+  writeLocalProjectIdentity,
+  writeLocalOperationState,
+  readLocalOperationState,
+  resumeCompatibility,
+} from "../../core/src/index.js";
 
 const staticPaths = [
   ".env.example",
   "AGENTS.md",
   "CLAUDE.md",
   "app/api/health/route.ts",
+  "app/lib/db.ts",
+  "compose.yaml",
+  "Dockerfile",
+  ".dockerignore",
+  ".github/workflows/ci.yml",
   "app/globals.css",
   "gitignore",
   "next-env.d.ts",
   "prisma/schema.prisma",
+  "prisma/migrations/20260827000000_initial/migration.sql",
+  "prisma/seed.mjs",
   "tsconfig.json",
+] as const;
+const completePaths = [
+  "app/api/health/route.complete.ts",
+  "app/api/examples/cache/route.ts",
+  "app/api/examples/email/route.ts",
+  "app/api/examples/storage/route.ts",
+  "app/lib/cache.ts",
+  "app/lib/email.ts",
+  "app/lib/storage.ts",
 ] as const;
 
 export interface NewRuntime {
@@ -58,11 +84,11 @@ const major = (value: string | undefined): number | undefined => {
   return match?.[1] === undefined ? undefined : Number(match[1]);
 };
 function preflight(runtime: NewRuntime): NewResult | undefined {
-  if (major(runtime.nodeVersion) !== 24)
+  if ((major(runtime.nodeVersion) ?? 0) < 24)
     return fail(
       3,
       "PREFLIGHT_NODE_UNSUPPORTED",
-      "zero new requer Node.js 24.",
+      "zero new requer Node.js 24 ou superior.",
       "Execute zero setup para diagnosticar a instalação.",
     );
   if (major(runtime.npmVersion) !== 11)
@@ -79,6 +105,8 @@ function configFor(
   description: string,
   slug: string,
   directory: string,
+  profile: NewProjectConfig["profile"],
+  start: boolean,
 ): NewProjectConfig {
   return parseNewProjectConfig(
     "schemaVersion: 1\nproject:\n  name: " +
@@ -89,7 +117,11 @@ function configFor(
       JSON.stringify(slug) +
       "\n  directory: " +
       JSON.stringify(directory) +
-      "\nprofile: essential\ninitialization:\n  start: false\n  git: false\n  github:\n    createPrivateRepository: false\n",
+      "\nprofile: " +
+      profile +
+      "\ninitialization:\n  start: " +
+      String(start) +
+      "\n  git: false\n  github:\n    createPrivateRepository: false\n",
   );
 }
 function slugify(name: string): string {
@@ -108,10 +140,17 @@ async function create(
 ): Promise<{ directory: string; slug: string }> {
   const template = runtime.templateDirectory;
   const staticFiles = await Promise.all(
-    staticPaths.map(async (source): Promise<TemplateFile> => ({
-      path: source === "gitignore" ? ".gitignore" : source,
-      contents: await readFile(resolve(template, source), "utf8"),
-    })),
+    [...staticPaths, ...(config.profile === "complete" ? completePaths : [])].map(
+      async (source): Promise<TemplateFile> => ({
+        path:
+          source === "gitignore"
+            ? ".gitignore"
+            : source === "app/api/health/route.complete.ts"
+              ? "app/api/health/route.ts"
+              : source,
+        contents: await readFile(resolve(template, source), "utf8"),
+      }),
+    ),
   );
   const [packageLock, lockSource] = await Promise.all([
     readFile(resolve(template, "package-lock.json"), "utf8"),
@@ -167,17 +206,33 @@ export async function runDeclarative(
   if (blocked !== undefined) return blocked;
   const configPath = resolve(runtime.currentDirectory, configArgument);
   try {
-    const result = await create(
-      parseNewProjectConfig(await runtime.readConfig(configPath)),
-      dirname(configPath),
-      runtime,
+    const config = parseNewProjectConfig(await runtime.readConfig(configPath));
+    const result = await create(config, dirname(configPath), runtime);
+    const manifestSource = await readFile(resolve(result.directory, "zero.yaml"), "utf8");
+    await writeLocalProjectIdentity(
+      result.directory,
+      createLocalProjectIdentity({ projectDirectory: result.directory, slug: result.slug }),
     );
+    await writeLocalOperationState(
+      result.directory,
+      completeStage(
+        createLocalOperationState({ projectDirectory: result.directory, manifestSource }),
+        "scaffolded",
+      ),
+    );
+    if (config.initialization.start) {
+      const upModule = await import("./" + "up.cjs");
+      const upResult = await upModule.runUp(result.directory, { background: true });
+      if (!upResult.ok) return fail(upResult.exitCode, upResult.code, upResult.message);
+    }
     return {
       ok: true,
       exitCode: 0,
       code: "PROJECT_CREATED",
       message: "Fundação criada.",
-      nextAction: "O ambiente funcional será entregue na Sprint 2.",
+      nextAction: config.initialization.start
+        ? "Use zero status para acompanhar os serviços e zero logs db para o banco."
+        : "Use zero up para iniciar o ambiente local.",
       result,
     };
   } catch (error) {
@@ -197,7 +252,22 @@ export async function runGuided(runtime: NewRuntime): Promise<NewResult> {
     const suggestedDirectory = "~/Projetos/" + slug;
     const directory =
       (await runtime.prompt("Pasta [" + suggestedDirectory + "]: ")).trim() || suggestedDirectory;
-    const config = configFor(name, description, slug, directory);
+    const profileAnswer = (await runtime.prompt("Perfil [essential/complete] (essential): "))
+      .trim()
+      .toLowerCase();
+    const profile = profileAnswer === "" ? "essential" : profileAnswer;
+    const startAnswer = (await runtime.prompt("Iniciar o ambiente ao concluir? [S/n]: "))
+      .trim()
+      .toLowerCase();
+    const start = startAnswer !== "n" && startAnswer !== "não" && startAnswer !== "nao";
+    const config = configFor(
+      name,
+      description,
+      slug,
+      directory,
+      profile as NewProjectConfig["profile"],
+      start,
+    );
     stdout.write(
       "\nResumo\nNome: " +
         config.project.name +
@@ -205,20 +275,66 @@ export async function runGuided(runtime: NewRuntime): Promise<NewResult> {
         config.project.slug +
         "\nDestino: " +
         config.project.directory +
+        "\nPerfil: " +
+        config.profile +
+        "\nInício local: " +
+        (config.initialization.start ? "sim" : "não") +
         "\nImpacto: cria arquivos.\n",
     );
     const confirmation = (await runtime.prompt("Criar a fundação? [s/N]: ")).trim().toLowerCase();
     if (confirmation !== "s" && confirmation !== "sim")
       return fail(2, "CANCELLED", "Criação cancelada; nenhum arquivo foi alterado.");
+    const result = await create(config, runtime.currentDirectory, runtime);
+    const manifestSource = await readFile(resolve(result.directory, "zero.yaml"), "utf8");
+    await writeLocalProjectIdentity(
+      result.directory,
+      createLocalProjectIdentity({ projectDirectory: result.directory, slug: result.slug }),
+    );
+    await writeLocalOperationState(
+      result.directory,
+      completeStage(
+        createLocalOperationState({ projectDirectory: result.directory, manifestSource }),
+        "scaffolded",
+      ),
+    );
     return {
       ok: true,
       exitCode: 0,
       code: "PROJECT_CREATED",
       message: "Fundação criada.",
-      result: await create(config, runtime.currentDirectory, runtime),
+      result,
     };
   } catch (error) {
     return fromError(error);
+  }
+}
+
+export async function runResume(directoryArgument: string | undefined): Promise<NewResult> {
+  if (directoryArgument === undefined) {
+    return fail(2, "INVALID_ARGUMENTS", "Use exatamente: zero new --resume <diretório>.");
+  }
+  try {
+    const directory = await realpath(directoryArgument);
+    const manifestSource = await readFile(resolve(directory, "zero.yaml"), "utf8");
+    const manifest = parseProjectManifest(manifestSource).manifest;
+    const compatibility = resumeCompatibility(await readLocalOperationState(directory), {
+      projectDirectory: directory,
+      manifestSource,
+    });
+    if (!compatibility.ok) return fail(2, "RESUME_STATE_MISMATCH", compatibility.reason);
+    const upModule = await import("./" + "up.cjs");
+    const upResult = await upModule.runUp(directory, { background: true });
+    return upResult.ok
+      ? {
+          ok: true,
+          exitCode: 0,
+          code: "PROJECT_RESUMED",
+          message: "Operação retomada em segundo plano.",
+          result: { directory, slug: manifest.project.slug },
+        }
+      : fail(upResult.exitCode, upResult.code, upResult.message);
+  } catch {
+    return fail(4, "RESUME_FAILED", "Não foi possível retomar esta operação com segurança.");
   }
 }
 export function defaultNewRuntime(input: {

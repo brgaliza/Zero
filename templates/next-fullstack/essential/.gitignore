@@ -2,6 +2,8 @@ node_modules/
 .next/
 .env.local
 .zero/*.local.*
+.zero/state.local.json
+.zero/journal.local.json
 coverage/
 playwright-report/
 test-results/

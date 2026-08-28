@@ -8,6 +8,14 @@ const outputFile = new URL("main.js", outputDirectory);
 const obsoleteScaffoldOutputDirectory = new URL("../packages/scaffold/dist/", import.meta.url);
 const scaffoldOutputFile = new URL("scaffold.cjs", outputDirectory);
 const newOutputFile = new URL("new.cjs", outputDirectory);
+const doctorOutputFile = new URL("doctor.cjs", outputDirectory);
+const upOutputFile = new URL("up.cjs", outputDirectory);
+const downOutputFile = new URL("down.cjs", outputDirectory);
+const statusOutputFile = new URL("status.cjs", outputDirectory);
+const logsOutputFile = new URL("logs.cjs", outputDirectory);
+const testOutputFile = new URL("test.cjs", outputDirectory);
+const buildOutputFile = new URL("build.cjs", outputDirectory);
+const recoverOutputFile = new URL("recover.cjs", outputDirectory);
 const templateSourceDirectory = new URL("../templates/", import.meta.url);
 const templateOutputDirectory = new URL("../packages/cli/templates/", import.meta.url);
 const schemaSourceDirectory = new URL("../schemas/", import.meta.url);
@@ -35,7 +43,89 @@ await build({
   outfile: fileURLToPath(outputFile),
   platform: "node",
   target: "node24",
-  external: ["./new.cjs"],
+  external: [
+    "./build.cjs",
+    "./doctor.cjs",
+    "./down.cjs",
+    "./logs.cjs",
+    "./new.cjs",
+    "./recover.cjs",
+    "./status.cjs",
+    "./test.cjs",
+    "./up.cjs",
+  ],
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/recover.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(recoverOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/test.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(testOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/build.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(buildOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/doctor.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(doctorOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/logs.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(logsOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/status.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(statusOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/down.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(downOutputFile),
+  platform: "node",
+  target: "node24",
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/up.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(upOutputFile),
+  platform: "node",
+  target: "node24",
 });
 
 await build({
@@ -45,6 +135,7 @@ await build({
   outfile: fileURLToPath(newOutputFile),
   platform: "node",
   target: "node24",
+  external: ["./up.cjs"],
 });
 
 await build({

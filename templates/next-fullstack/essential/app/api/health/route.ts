@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 
-export function GET() {
-  return NextResponse.json({ status: "not-configured" }, { status: 503 });
+import { db } from "../../lib/db";
+
+export async function GET() {
+  try {
+    await db.$queryRaw`SELECT 1`;
+    return NextResponse.json({ status: "ok", database: "ok" });
+  } catch {
+    return NextResponse.json({ status: "degraded", database: "unavailable" }, { status: 503 });
+  }
 }

@@ -35,14 +35,22 @@ export interface NewProjectConfig {
     readonly slug: string;
     readonly directory: string;
   };
-  readonly profile: "essential";
+  readonly profile: ProjectProfile;
   readonly initialization: {
-    readonly start: false;
+    readonly start: boolean;
     readonly git: false;
     readonly github: {
       readonly createPrivateRepository: false;
     };
   };
+}
+
+export type ProjectProfile = "essential" | "complete";
+
+export interface ProjectServices {
+  readonly redis: boolean;
+  readonly storage: boolean;
+  readonly email: boolean;
 }
 
 export interface ProjectManifest {
@@ -65,12 +73,8 @@ export interface ProjectManifest {
     readonly majorVersion: 17;
     readonly orm: "prisma";
   };
-  readonly profile: "essential";
-  readonly services: {
-    readonly redis: false;
-    readonly storage: false;
-    readonly email: false;
-  };
+  readonly profile: ProjectProfile;
+  readonly services: ProjectServices;
   readonly capabilities: {
     readonly auth: "none";
   };
@@ -173,6 +177,63 @@ function literalField<T extends string | number | boolean>(
   }
 
   return expected;
+}
+
+function booleanField(record: UnknownRecord, key: string, path: readonly string[]): boolean {
+  const value = record[key];
+  if (typeof value !== "boolean") {
+    fail([
+      issue(
+        value === undefined ? "MISSING_FIELD" : "INVALID_TYPE",
+        [...path, key],
+        "deve ser booleano",
+      ),
+    ]);
+  }
+  return value;
+}
+
+function profileField(record: UnknownRecord, path: readonly string[]): ProjectProfile {
+  const value = record.profile;
+  if (value === "essential" || value === "complete") return value;
+  fail([
+    issue(
+      value === undefined ? "MISSING_FIELD" : "INVALID_VALUE",
+      [...path, "profile"],
+      'deve ser "essential" ou "complete"',
+    ),
+  ]);
+}
+
+export function servicesForProfile(profile: ProjectProfile): ProjectServices {
+  return profile === "complete"
+    ? { redis: true, storage: true, email: true }
+    : { redis: false, storage: false, email: false };
+}
+
+function parseServices(
+  record: UnknownRecord,
+  profile: ProjectProfile,
+  path: readonly string[],
+): ProjectServices {
+  const expected = servicesForProfile(profile);
+  const services: ProjectServices = {
+    redis: booleanField(record, "redis", path),
+    storage: booleanField(record, "storage", path),
+    email: booleanField(record, "email", path),
+  };
+  for (const key of ["redis", "storage", "email"] as const) {
+    if (services[key] !== expected[key]) {
+      fail([
+        issue(
+          "INVALID_VALUE",
+          [...path, key],
+          `deve ser ${String(expected[key])} para o profile ${profile}`,
+        ),
+      ]);
+    }
+  }
+  return services;
 }
 
 function checkKeys(
@@ -324,9 +385,9 @@ export function parseNewProjectConfig(source: string): NewProjectConfig {
   return {
     schemaVersion: literalField(record, "schemaVersion", CONFIG_SCHEMA_VERSION, []),
     project: project as NewProjectConfig["project"],
-    profile: literalField(record, "profile", "essential", []),
+    profile: profileField(record, []),
     initialization: {
-      start: literalField(initialization, "start", false, ["initialization"]),
+      start: booleanField(initialization, "start", ["initialization"]),
       git: literalField(initialization, "git", false, ["initialization"]),
       github: {
         createPrivateRepository: literalField(github, "createPrivateRepository", false, [
@@ -349,8 +410,8 @@ export function createProjectManifest(config: NewProjectConfig): ProjectManifest
     template: { id: "next-fullstack", version: "1.0.0" },
     runtime: { nodeMajor: 24, packageManager: "npm" },
     database: { engine: "postgres", majorVersion: 17, orm: "prisma" },
-    profile: "essential",
-    services: { redis: false, storage: false, email: false },
+    profile: config.profile,
+    services: servicesForProfile(config.profile),
     capabilities: { auth: "none" },
     health: { path: "/api/health" },
   };
@@ -399,6 +460,7 @@ function parseProjectManifestInternal(
     ...checkKeys(health, ["path"], ["health"], unknownFields),
   );
 
+  const profile = profileField(record, []);
   return {
     warnings,
     manifest: {
@@ -417,12 +479,8 @@ function parseProjectManifestInternal(
         majorVersion: literalField(database, "majorVersion", 17, ["database"]),
         orm: literalField(database, "orm", "prisma", ["database"]),
       },
-      profile: literalField(record, "profile", "essential", []),
-      services: {
-        redis: literalField(services, "redis", false, ["services"]),
-        storage: literalField(services, "storage", false, ["services"]),
-        email: literalField(services, "email", false, ["services"]),
-      },
+      profile,
+      services: parseServices(services, profile, ["services"]),
       capabilities: {
         auth: literalField(capabilities, "auth", "none", ["capabilities"]),
       },

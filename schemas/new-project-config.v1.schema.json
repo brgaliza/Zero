@@ -23,13 +23,13 @@
         "directory": { "type": "string", "minLength": 1, "maxLength": 1024 }
       }
     },
-    "profile": { "const": "essential" },
+    "profile": { "enum": ["essential", "complete"] },
     "initialization": {
       "type": "object",
       "additionalProperties": false,
       "required": ["start", "git", "github"],
       "properties": {
-        "start": { "const": false },
+        "start": { "type": "boolean" },
         "git": { "const": false },
         "github": {
           "type": "object",

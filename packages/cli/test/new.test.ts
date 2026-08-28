@@ -45,6 +45,20 @@ describe("zero new", () => {
     ).resolves.toContain("minha-agenda");
   });
 
+  it("cria a fundação com Node.js 26", async () => {
+    const input = await runtime();
+    const result = await runDeclarative("config.yaml", true, { ...input, nodeVersion: "v26.5.0" });
+
+    expect(result).toMatchObject({ ok: true, exitCode: 0, code: "PROJECT_CREATED" });
+  });
+
+  it("bloqueia Node.js anterior à versão 24", async () => {
+    const input = await runtime();
+    const result = await runDeclarative("config.yaml", true, { ...input, nodeVersion: "v23.11.0" });
+
+    expect(result).toMatchObject({ exitCode: 3, code: "PREFLIGHT_NODE_UNSUPPORTED" });
+  });
+
   it("rejeita --config sem --yes antes de ler ou escrever", async () => {
     const input = await runtime();
     const readConfig = vi.fn(input.readConfig);
@@ -66,12 +80,23 @@ describe("zero new", () => {
 
   it("cancela o assistente antes de materializar", async () => {
     const input = await runtime();
-    const answers = ["Minha Agenda", "Uma agenda pessoal", "", "projeto", "n"];
+    const answers = ["Minha Agenda", "Uma agenda pessoal", "", "projeto", "", "n", "n"];
     const result = await runGuided({ ...input, prompt: async () => answers.shift() ?? "" });
 
     expect(result).toMatchObject({ exitCode: 2, code: "CANCELLED" });
     await expect(
       readFile(join(input.currentDirectory, "projeto", "zero.yaml"), "utf8"),
     ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("oferece o perfil complete no assistente", async () => {
+    const input = await runtime();
+    const answers = ["Minha Agenda", "Uma agenda pessoal", "", "projeto", "complete", "n", "s"];
+    const result = await runGuided({ ...input, prompt: async () => answers.shift() ?? "" });
+
+    expect(result).toMatchObject({ ok: true, code: "PROJECT_CREATED" });
+    await expect(
+      readFile(join(input.currentDirectory, "projeto", "zero.yaml"), "utf8"),
+    ).resolves.toContain("profile: complete");
   });
 });

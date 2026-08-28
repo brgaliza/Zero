@@ -115,7 +115,11 @@ function escapeMarkdown(value: string): string {
   return value.replace(/[\\`*_{}\[\]<>()#+.!|]/gu, "\\$&");
 }
 
-function renderPackageLock(packageLock: string, slug: string): string {
+function renderPackageLock(
+  packageLock: string,
+  slug: string,
+  dependencies: Record<string, string>,
+): string {
   const parsed = JSON.parse(packageLock) as { name?: unknown; packages?: Record<string, unknown> };
   const rootPackage = parsed.packages?.[""];
   if (typeof rootPackage !== "object" || rootPackage === null || Array.isArray(rootPackage)) {
@@ -124,6 +128,7 @@ function renderPackageLock(packageLock: string, slug: string): string {
 
   parsed.name = slug;
   (rootPackage as Record<string, unknown>).name = slug;
+  (rootPackage as Record<string, unknown>).dependencies = dependencies;
   return `${JSON.stringify(parsed, null, 2)}\n`;
 }
 
@@ -146,12 +151,24 @@ export function renderEssentialProjectFiles(
       lint: "eslint .",
       typecheck: "tsc --noEmit",
       test: "vitest run",
+      "db:generate": "prisma generate",
+      "db:migrate": "prisma migrate deploy",
+      "db:seed": "prisma db seed",
+      check: "npm run lint && npm run typecheck && npm run test",
     },
+    prisma: { seed: "node prisma/seed.mjs" },
     dependencies: {
       "@prisma/client": "6.12.0",
       next: "16.3.3",
       react: "19.2.0",
       "react-dom": "19.2.0",
+      ...(manifest.profile === "complete"
+        ? {
+            "@aws-sdk/client-s3": "3.1120.0",
+            ioredis: "6.0.0",
+            nodemailer: "9.0.6",
+          }
+        : {}),
     },
     devDependencies: {
       "@types/node": "24.10.1",
@@ -175,10 +192,13 @@ export function renderEssentialProjectFiles(
       contents: `${JSON.stringify(templateLock, null, 2)}\n`,
     },
     { path: "package.json", contents: `${JSON.stringify(packageMetadata, null, 2)}\n` },
-    { path: "package-lock.json", contents: renderPackageLock(input.packageLock, slug) },
+    {
+      path: "package-lock.json",
+      contents: renderPackageLock(input.packageLock, slug, packageMetadata.dependencies),
+    },
     {
       path: "README.md",
-      contents: `# ${escapedName}\n\n${escapedDescription}\n\nEste projeto foi criado pelo Zero no perfil \`essential\` e está em **pré-execução** na Sprint 1. O ambiente local funcional será entregue na Sprint 2.\n`,
+      contents: `# ${escapedName}\n\n${escapedDescription}\n\nEste projeto foi criado pelo Zero no perfil \`${manifest.profile}\`. Use \`zero up\` para iniciar os serviços locais, migrations, seed e a aplicação; \`zero down\` encerra a infraestrutura e preserva seus dados.\n`,
     },
     {
       path: "app/layout.tsx",
@@ -186,7 +206,7 @@ export function renderEssentialProjectFiles(
     },
     {
       path: "app/page.tsx",
-      contents: `const projectName = ${pageTitle};\nconst projectDescription = ${pageDescription};\n\nexport default function HomePage() {\n  return <main><p>{projectName}</p><h1>Fundação criada com segurança</h1><p>{projectDescription}</p><p>Este projeto está em pré-execução.</p></main>;\n}\n`,
+      contents: `const projectName = ${pageTitle};\nconst projectDescription = ${pageDescription};\n\nexport default function HomePage() {\n  return <main><p>{projectName}</p><h1>Ambiente local pronto para desenvolvimento</h1><p>{projectDescription}</p><p>Use zero status para acompanhar os serviços locais.</p></main>;\n}\n`,
     },
   ];
 }

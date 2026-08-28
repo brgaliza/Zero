@@ -1,8 +1,7 @@
 # Orientação para agentes
 
-Este repositório foi criado pelo Zero no perfil `essential` e está em
-pré-execução na Sprint 1. Não assuma que Docker, PostgreSQL, Prisma Client ou
-variáveis locais já estejam disponíveis.
+Este repositório foi criado pelo Zero no perfil `essential`. Opere o ambiente
+por `zero up`, `zero down`, `zero status` e `zero logs [app|db]`.
 
 - Leia `zero.yaml` antes de propor mudanças na infraestrutura.
 - Nunca leia, exiba ou versione `.env.local`.

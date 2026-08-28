@@ -24,6 +24,7 @@ initialization:
   github:
     createPrivateRepository: false
 `;
+const completeConfig = validConfig.replace("profile: essential", "profile: complete");
 
 describe("parseNewProjectConfig", () => {
   it("aceita o contrato transitório da Sprint 1", () => {
@@ -39,9 +40,21 @@ describe("parseNewProjectConfig", () => {
     );
   });
 
-  it("rejeita mutações que ainda não existem na Sprint 1", () => {
-    expect(() => parseNewProjectConfig(validConfig.replace("start: false", "start: true"))).toThrow(
-      /deve ser false/u,
+  it("aceita início explícito do ambiente na Sprint 2", () => {
+    expect(parseNewProjectConfig(validConfig.replace("start: false", "start: true"))).toMatchObject(
+      {
+        initialization: { start: true },
+      },
+    );
+  });
+
+  it("aceita o perfil complete", () => {
+    expect(parseNewProjectConfig(completeConfig)).toMatchObject({ profile: "complete" });
+  });
+
+  it("rejeita profile desconhecido", () => {
+    expect(() => parseNewProjectConfig(validConfig.replace("essential", "redis"))).toThrow(
+      ManifestValidationError,
     );
   });
 
@@ -71,6 +84,22 @@ describe("manifesto do projeto", () => {
       services: { email: false, redis: false, storage: false },
     });
     expect(manifest.project).not.toHaveProperty("directory");
+  });
+
+  it("deriva todos os serviços apenas para complete", () => {
+    expect(createProjectManifest(parseNewProjectConfig(completeConfig))).toMatchObject({
+      profile: "complete",
+      services: { email: true, redis: true, storage: true },
+    });
+  });
+
+  it("rejeita serviços inconsistentes com o profile", () => {
+    const manifest = createProjectManifest(parseNewProjectConfig(completeConfig));
+    expect(() =>
+      parseGeneratedProjectManifest(
+        JSON.stringify({ ...manifest, services: { ...manifest.services, redis: false } }),
+      ),
+    ).toThrow(ManifestValidationError);
   });
 
   it("avisa sobre campos futuros no manifesto existente", () => {
@@ -147,5 +176,17 @@ describe("schemas portáveis", () => {
     expect(validate({ ...manifest, services: { ...manifest.services, vectorDb: true } })).toBe(
       false,
     );
+  });
+
+  it("impõe o conjunto de serviços no schema canônico", async () => {
+    const source = await readFile(
+      new URL("../../../schemas/project-manifest.v1.schema.json", import.meta.url),
+      "utf8",
+    );
+    const validate = new Ajv2020().compile(JSON.parse(source));
+    const manifest = createProjectManifest(parseNewProjectConfig(completeConfig));
+
+    expect(validate(manifest)).toBe(true);
+    expect(validate({ ...manifest, services: { ...manifest.services, email: false } })).toBe(false);
   });
 });
