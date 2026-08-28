@@ -59,7 +59,9 @@ codesign --verify --deep --strict --verbose=2 "/Applications/Zero Beta Installer
 
 Esse é o bloco obrigatório antes da primeira abertura: `codesign` termina sem
 erro, `spctl` informa avaliação aceita e a última saída contém o `TeamIdentifier`
-esperado. Qualquer outro resultado instrui parar e contatar suporte.
+esperado. A aceitação de `spctl`/exit code `0`, não a presença de quarentena, é o
+critério; qualquer outro resultado instrui parar e contatar suporte, sem remover
+quarentena, usar `xattr` ou contornar Gatekeeper.
 
 1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
 2. abrir o Terminal e executar o preflight independente copiado do guia
@@ -96,9 +98,11 @@ entram somente para abrir Terminal e reconhecer Docker Desktop pronto.
 `zero setup` continua somente leitura, mas distingue Docker ausente, instalado
 com Desktop parado, daemon inacessível, transporte remoto recusado e pronto.
 Explica o que falta, por que importa, link oficial e próxima ação. As faixas
-aceitas seguem o contrato atual: Node `>=24` e npm `>=11`; versões futuras só
-entram após gates de compatibilidade. Versão abaixo do mínimo bloqueia
-criação/operação; testes cobrem Node 24, Node 26 e versões antigas.
+aceitas seguem o contrato atual: Node `>=24` e npm `11.x`; qualquer outro major
+de npm bloqueia criação/operação. Nova faixa só entra após gates de compatibilidade
+no preflight, instalador e `zero setup`; a implementação também alinha
+`engines.npm` a `>=11 <12`. Testes cobrem Node 24, Node 26, npm 11 e versões
+antigas/incompatíveis.
 
 `zero report` gera `~/.zero/reports/zero-report.json` com arquivo `0600` e
 diretórios `~/.zero`/`reports` `0700`; substitui de forma atômica somente o
@@ -116,8 +120,13 @@ canal, responsável e prazo de resposta.
 
 O instalador não usa `npm -g`: instala em prefixo privado user-owned
 `~/.zero/cli/versions/vX.Y.Z`, testa o binário e cria shim estável
-`~/.zero/bin/zero`. Com consentimento, inclui `~/.zero/bin` no PATH; sem ele, o
-guia usa `~/.zero/bin/zero`. Finder não precisa herdar PATH de nvm/asdf: procura,
+`~/.zero/bin/zero`. Em macOS com zsh, com consentimento, inclui uma única linha
+marcada e idempotente em `~/.zprofile`; mostra o arquivo alterado, pede fechar o
+Terminal aberto antes da instalação, abrir um novo e só seleciona a trilha `zero`
+depois de `command -v zero` apontar para `~/.zero/bin/zero`. Se o shell não for
+zsh, a edição falhar ou o comando não resolver, não altera outro arquivo e
+seleciona a trilha integral `~/.zero/bin/zero`. Finder não precisa herdar PATH de
+nvm/asdf: procura,
 nesta ordem, pares `node`/`npm` em `/opt/homebrew/bin`, `/usr/local/bin`,
 `~/.nvm/versions/node/*/bin` e `~/.asdf/installs/nodejs/*/bin`; dentro de uma
 raiz escolhe a maior versão compatível, e entre raízes vence a primeira. Para
@@ -179,8 +188,8 @@ sem Zero, checkout ou estado anterior, com macOS 14+, Node/npm compatíveis e
 Docker Desktop instalados pelo roteiro oficial. Registra as versões de macOS,
 Node, npm e Docker, tempos, screenshots dos passos visuais e saída sanitizada.
 Exercita os dois ramos do guia: consentir e recusar PATH, incluindo rollback em
-ambos. Falha de qualquer passo bloqueia a release; CI Linux continua complementar,
-não substituta.
+ambos, e o fallback de PATH não resolvido. Falha de qualquer passo bloqueia a
+release; CI Linux continua complementar, não substituta.
 
 ## Aceite
 
