@@ -2,7 +2,7 @@ import { lstat, mkdtemp, readlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { acquireInstallLock, activateInstalledVersion, createPrivateStaging, promoteStaging, versionDirectory } from "../src/installer.js";
+import { acquireInstallLock, activateInstalledVersion, createPrivateStaging, promoteStaging, rollbackInstalledVersion, versionDirectory } from "../src/installer.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true }))); });
@@ -38,5 +38,14 @@ describe("installer layout", () => {
     await promoteStaging(root, staging, "v1.2.3");
     expect(await readlink(join(root, "cli", "current"))).toBe(versionDirectory(root, "v1.2.3"));
     expect((await stat(versionDirectory(root, "v1.2.3"))).isDirectory()).toBe(true);
+  });
+
+  it("reverte para a versão local anterior", async () => {
+    const root = await mkdtemp(join(tmpdir(), "zero-installer-"));
+    roots.push(root);
+    await promoteStaging(root, await createPrivateStaging(root), "v1.0.0");
+    await promoteStaging(root, await createPrivateStaging(root), "v1.1.0");
+    await expect(rollbackInstalledVersion(root)).resolves.toBe("v1.0.0");
+    expect(await readlink(join(root, "cli", "current"))).toBe(versionDirectory(root, "v1.0.0"));
   });
 });

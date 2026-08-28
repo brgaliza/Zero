@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, open, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, open, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const VERSION = /^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u;
@@ -37,6 +37,18 @@ export async function promoteStaging(rootDirectory: string, staging: string, ver
   await mkdir(join(rootDirectory, "cli", "versions"), { recursive: true, mode: 0o700 });
   await rename(staging, destination);
   await activateInstalledVersion(rootDirectory, version);
+}
+
+export async function rollbackInstalledVersion(rootDirectory: string): Promise<string> {
+  const current = await readlink(join(rootDirectory, "cli", "current"));
+  const currentVersion = current.split("/").at(-1);
+  if (currentVersion === undefined) throw new Error("Versão ativa inválida.");
+  const versions = (await readdir(join(rootDirectory, "cli", "versions"))).filter((version) => VERSION.test(version)).sort();
+  const candidates = versions.filter((version) => version !== currentVersion);
+  const target = candidates.at(-1);
+  if (target === undefined) throw new Error("Não há versão anterior instalada para rollback.");
+  await activateInstalledVersion(rootDirectory, target);
+  return target;
 }
 
 export async function activateInstalledVersion(rootDirectory: string, version: string): Promise<void> {

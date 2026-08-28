@@ -95,6 +95,7 @@ const rootHelp = `Zero — fundador guiado de projetos web
 Uso:
   zero setup [--json]
   zero report
+  zero rollback --previous
   zero new
   zero new --config <arquivo> --yes
   zero new --resume <diretório>
@@ -136,6 +137,10 @@ const reportHelp = `Uso:
 
 Gera ~/.zero/reports/zero-report.json para suporte. O arquivo contém somente
 versões e estados enumerados; não inclui caminhos, logs, URLs ou segredos.`;
+const rollbackHelp = `Uso:
+  zero rollback --previous
+
+Reverte para a versão local anterior somente depois de validar a troca atômica.`;
 
 const newHelp = `Uso:
   zero new
@@ -405,6 +410,7 @@ export async function run(
     if (target === "setup") process.stdout.write(`${setupHelp}\n`);
     else if (target === "new") process.stdout.write(`${newHelp}\n`);
     else if (target === "report") process.stdout.write(`${reportHelp}\n`);
+    else if (target === "rollback") process.stdout.write(`${rollbackHelp}\n`);
     else if (target === "doctor") process.stdout.write(`${doctorHelp}\n`);
     else if (target === "up") process.stdout.write(`${upHelp}\n`);
     else if (target === "down") process.stdout.write(`${downHelp}\n`);
@@ -446,6 +452,16 @@ export async function run(
     const reportModule = await import("./" + "report.cjs");
     const result = await reportModule.runReport({ zeroVersion: getVersion(), checks: setupChecks(runtime) });
     writeResult({ command: "report", ...result }, false);
+    return result.exitCode;
+  }
+  if (command === "rollback") {
+    if (options[0] === "--help" || options[0] === "-h") { process.stdout.write(`${rollbackHelp}\n`); return 0; }
+    if (options.length !== 1 || options[0] !== "--previous" || json) {
+      writeResult(fail("rollback", "INVALID_ARGUMENTS", 'Use "zero rollback --previous".'), json); return 2;
+    }
+    const rollbackModule = await import("./" + "rollback.cjs");
+    const result = await rollbackModule.runRollback();
+    writeResult({ command: "rollback", ...result }, false);
     return result.exitCode;
   }
   if (command === "new") {
