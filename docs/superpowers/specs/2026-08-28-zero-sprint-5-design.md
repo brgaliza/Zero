@@ -142,7 +142,12 @@ diretamente em staging aleatório `0700`, cria arquivo exclusivo `0600` com
 provenance e digest sobre esses mesmos bytes; um extrator interno com paths,
 inventário e modos allowlisted consome esse descritor e materializa o pacote em
 `<staging>/package`. O arquivo é apagado em falha e nunca se executa arquivo cuja
-verificação não tenha ocorrido no descritor consumido. Antes do swap, cria
+verificação não tenha ocorrido no descritor consumido. O extrator aceita somente
+diretórios e arquivos regulares da lista de pacote, rejeita symlink, hardlink,
+device, FIFO, path absoluto e qualquer componente `..`; limita entradas, tamanho
+por arquivo e tamanho total; descarta ownership e cria cada destino com resolução
+sem-follow confinada ao staging. Testes cobrem cada rejeição e estouro de limite.
+Antes do swap, cria
 `<staging>/bin/zero`, wrapper executável que chama o Node aprovado pelo instalador
 e `<staging>/package/dist/main.js`; testa o wrapper com `--version` e `--help`.
 Só então move o staging para `versions/vX.Y.Z`, cria/troca atomicamente
@@ -195,12 +200,16 @@ ref/tag exata, predicate type SLSA aprovado, digest idêntico e entrada de
 transparência Rekor com prova de inclusão válida. Certificado Fulcio pode estar
 expirado no momento da instalação somente se a prova Rekor demonstrar que estava
 válido no instante assinado; cadeia inválida, revogação aplicável, identidade fora
-da política ou prova ausente/inválida falha fechado. Além do path, `job_workflow_ref`
-deve corresponder a `owner/repo/.github/workflows/beta-release.yml@SHA-completo`
-numa allowlist versionada e embutida no instalador; mudança dessa revisão requer
-rotação explícita aprovada e novo instalador. Testes adulteram assinatura,
-certificado/identidade, inclusão, cada campo de política e somente o SHA do
-workflow, todos com falha fechada.
+da política ou prova ausente/inválida falha fechado. O DMG contém manifesto de
+política canônico, assinado pela chave de release embutida e protegido pela
+assinatura do app, com versão do DMG, repositório e exatamente um
+`job_workflow_ref` permitido. O valor é literal e comparado byte a byte como
+`owner/repo/.github/workflows/beta-release.yml@SHA-40`, onde SHA-40 é o commit que
+contém o workflow executado; não aceita normalização, curingas, branch, tag,
+campo ausente, duplicado ou ambíguo. A política não deriva da proveniência e só
+muda em novo instalador assinado pela identidade já confiável. Testes adulteram
+assinatura, certificado/identidade, inclusão, cada campo de política e somente o
+SHA do workflow, todos com falha fechada.
 A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
 apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
@@ -217,6 +226,13 @@ qualquer divergência ou asset de outra release falha fechado. Exige Node/npm j�
 aprovados pelo preflight, instala somente tarball verificado com
 lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
 produz, assina, verifica e anexa o DMG junto aos assets.
+
+A identidade Developer ID/notarização e a chave de release ficam em cofre/HSM de
+produção acessível somente ao Environment protegido `beta-release`, após aprovação
+do responsável nomeado. Workflows de pull request, forks e branches não protegidas
+não recebem material de assinatura nem permissão de notarização; logs nunca
+imprimem credenciais. O gate testa essa separação de permissões antes da primeira
+release e em cada alteração do workflow de publicação.
 
 Antes de publicar, um Human Gate executa a trilha literal em Mac Apple Silicon
 sem Zero, checkout ou estado anterior, com macOS 14+, Node/npm compatíveis e
