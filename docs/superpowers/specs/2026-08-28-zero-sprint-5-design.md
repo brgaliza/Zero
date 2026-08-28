@@ -213,11 +213,15 @@ Fulcio e bundle/prova de inclusão Rekor. O envelope contém um único in-toto
 Statement com `predicateType` `https://zero.dev/attestation/beta/v1` e
 `predicate.schemaVersion` `1`: `subject[0]` tem nome do tarball e digest SHA-256;
 `predicate.source` tem `repository`, `commitSha` e `releaseTag`; e
-`predicate.builder` tem `issuer`, `workflowRef` e `jobWorkflowRef`. Gate e
+`predicate.builder` tem `issuer`, `workflowRef` e `workflowSha`. Gate e
 instalador usam a biblioteca Sigstore na versão pinada pelo manifesto para validar
 offline assinatura e prova, e exigem uma única ocorrência de cada campo. As
+camadas JSON rejeitam chaves duplicadas antes da desserialização, JSON não-JCS
+(RFC 8785), valores fora de string ASCII onde exigido, números e tipos alternativos;
+limitam bundle a 1 MiB e profundidade 16. Fixtures cobrem duplicidade de todos os
+claims, subject, digest e policy. As
 extensions/SAN do certificado Fulcio fornecem `issuer`, `repository`, `ref/tag`,
-`workflowRef` e `jobWorkflowRef`; cada valor deve ser byte a byte igual ao
+`workflowRef` e `workflowSha`; cada valor deve ser byte a byte igual ao
 Statement e à política embutida. `subject.digest`, source URI/digest, tag, commit e
 identidade de builder também devem coincidir exatamente; ausência, multiplicidade
 ou divergência falha fechado. O certificado Fulcio pode estar expirado no momento
@@ -226,10 +230,11 @@ assinado; cadeia inválida, revogação aplicável ou prova ausente/inválida fa
 fechado. O DMG contém manifesto
 de política canônico, assinado pela chave de release embutida e protegido pela
 assinatura do app, com valores literais e únicos `repository`, `release_tag`,
-`commit_sha`, digest e `job_workflow_ref`. O último é comparado byte a byte como
-`owner/repo/.github/workflows/beta-release.yml@SHA-40`, onde SHA-40 é o commit que
-contém o workflow executado; não aceita normalização, curingas, branch, tag,
-campo ausente, duplicado ou ambíguo. O verificador extrai o SHA somente do claim
+`commit_sha`, digest, `workflow_ref` e `workflow_sha`. O primeiro é comparado byte
+a byte como `owner/repo/.github/workflows/beta-release.yml@refs/tags/vX.Y.Z`; o
+segundo é SHA-40 do arquivo de workflow executado. Não aceita normalização,
+curingas, branch diferente, tag diferente, campo ausente, duplicado ou ambíguo.
+O verificador extrai o SHA somente do claim
 assinado e o compara ao manifesto, nunca deriva um do outro. A política não deriva
 da proveniência e só muda em novo instalador assinado pela identidade já confiável.
 Testes adulteram assinatura, certificado/identidade, inclusão, cada claim, cada
@@ -250,20 +255,28 @@ qualquer divergência ou asset de outra release falha fechado. Exige Node/npm j�
 aprovados pelo preflight, instala somente tarball verificado com
 lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
 produz, assina, verifica e anexa o DMG junto aos assets. Interface e logs locais
-persistidos usam a mesma allowlist de `zero report`: apenas código estável, etapa
-e próxima ação; nunca URL, path pessoal, stderr bruto ou segredo. Testes injetam
-segredos nos erros de download, assinatura, extrator e subprocesso.
+persistidos usam schema fechado: `code`, `stage`, `next_action_id` enumerado e
+parâmetros públicos allowlisted (somente versão). A UI renderiza texto local a
+partir de `next_action_id`; nunca interpola stderr, URL recebida, path, header HTTP,
+argumento do usuário ou exceção. Testes limitam tamanho e injetam segredos na
+apresentação e no crash-recovery, além de download, assinatura, extrator e
+subprocesso.
 
 A identidade Developer ID e a chave de release nunca são exportadas: serviço de
 assinatura remoto/HSM recebe OIDC do GitHub Actions e valida diretamente os claims
 do JWT contra política própria, imutável para o job e administrada fora do
 repositório: issuer e audience literais, repository canônico, tag/ref protegida,
-SHA do workflow, Environment `beta-release` e dois approvers distintos do
-solicitante. Manifesto, parâmetros e conteúdo enviados pelo job nunca autorizam
-assinatura. Alterar essa allowlist requer controle administrativo separado e dois
-responsáveis. O Environment nega pull request, fork e branch; workflow alterado
-não ganha capacidade de assinatura apenas por estar em branch protegida. Cada
-assinatura gera auditoria imutável com repositório, tag, SHA, workflow e operador.
+`workflow_ref`, `workflow_sha`, SHA do commit e Environment `beta-release`.
+Manifesto, parâmetros e conteúdo enviados pelo job nunca autorizam assinatura.
+Como OIDC não prova aprovações, o HSM consulta por GitHub App read-only separado a
+API autenticada de deployment/reviews para o `run_id` e exige dois IDs de reviewer
+com decisão aprovada, distintos entre si e do `actor_id`; resposta ausente,
+ambígua ou sem correspondência falha fechado. A auditoria imutável retém IDs,
+hash da resposta, repositório, tag, SHA e workflow por sete anos. Alterar a
+allowlist requer controle administrativo separado e dois responsáveis. O
+Environment nega pull request, fork e branch; workflow alterado não ganha
+capacidade de assinatura apenas por estar em branch protegida. Cada assinatura
+gera auditoria imutável com repositório, tag, SHA, workflow e operador.
 A credencial de notarização fica em cofre separado, com escopo exclusivo de
 notarização, rotação documentada e injetada somente nesse job sem leitura/impressão
 em logs. O gate testa essa separação de permissões antes da primeira release e em
