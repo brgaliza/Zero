@@ -170,9 +170,10 @@ o comando não resolver, não altera outro arquivo e seleciona a trilha integral
 nesta ordem, pares `node`/`npm` em `/opt/homebrew/bin`, `/usr/local/bin`,
 `~/.nvm/versions/node/*/bin` e `~/.asdf/installs/nodejs/*/bin`; dentro de uma
 raiz escolhe a maior versão compatível, e entre raízes vence a primeira. Para
-instalação encontrada mas incompatível ou gerenciador fora da lista, para com o
-caminho encontrado e link oficial de instalação; testes cobrem múltiplas versões
-e processo gráfico sem PATH.
+instalação encontrada mas incompatível ou gerenciador fora da lista, para com a
+categoria segura “runtime incompatível” e link oficial de instalação, sem exibir
+ou persistir caminho pessoal; testes cobrem múltiplas versões e processo gráfico
+sem PATH.
 
 Instalação, atualização e rollback adquirem antes do staging um lock exclusivo
 `fcntl(F_SETLK)` em `~/.zero/cli/.operation.lock` (`0600`), mantido até limpeza e
@@ -208,15 +209,21 @@ workflow falha quando o autor/assinante/tag não pertence à allowlist.
 
 Além de `SHA256SUMS.asc`, o job emite e anexa `provenance.sigstore.json`, Sigstore
 Bundle JSON canônico que contém exatamente um envelope DSSE, cadeia de certificado
-Fulcio e bundle/prova de inclusão Rekor. Gate e instalador usam a biblioteca
-Sigstore na versão pinada pelo manifest para validar offline a assinatura e a
-prova. Do envelope SLSA, extraem exatamente uma vez e com igualdade byte a byte:
-issuer OIDC GitHub Actions, repository canônico, `workflow_ref`,
-`job_workflow_ref`, ref/tag, SHA do commit e subject digest SHA-256 do tarball;
-ausência, multiplicidade ou divergência de qualquer claim falha fechado. O
-certificado Fulcio pode estar expirado no momento da instalação somente se a prova
-Rekor demonstrar que estava válido no instante assinado; cadeia inválida,
-revogação aplicável ou prova ausente/inválida falha fechado. O DMG contém manifesto
+Fulcio e bundle/prova de inclusão Rekor. O envelope contém um único in-toto
+Statement com `predicateType` `https://zero.dev/attestation/beta/v1` e
+`predicate.schemaVersion` `1`: `subject[0]` tem nome do tarball e digest SHA-256;
+`predicate.source` tem `repository`, `commitSha` e `releaseTag`; e
+`predicate.builder` tem `issuer`, `workflowRef` e `jobWorkflowRef`. Gate e
+instalador usam a biblioteca Sigstore na versão pinada pelo manifesto para validar
+offline assinatura e prova, e exigem uma única ocorrência de cada campo. As
+extensions/SAN do certificado Fulcio fornecem `issuer`, `repository`, `ref/tag`,
+`workflowRef` e `jobWorkflowRef`; cada valor deve ser byte a byte igual ao
+Statement e à política embutida. `subject.digest`, source URI/digest, tag, commit e
+identidade de builder também devem coincidir exatamente; ausência, multiplicidade
+ou divergência falha fechado. O certificado Fulcio pode estar expirado no momento
+da instalação somente se a prova Rekor demonstrar que estava válido no instante
+assinado; cadeia inválida, revogação aplicável ou prova ausente/inválida falha
+fechado. O DMG contém manifesto
 de política canônico, assinado pela chave de release embutida e protegido pela
 assinatura do app, com valores literais e únicos `repository`, `release_tag`,
 `commit_sha`, digest e `job_workflow_ref`. O último é comparado byte a byte como
@@ -248,10 +255,13 @@ e próxima ação; nunca URL, path pessoal, stderr bruto ou segredo. Testes inje
 segredos nos erros de download, assinatura, extrator e subprocesso.
 
 A identidade Developer ID e a chave de release nunca são exportadas: serviço de
-assinatura remoto/HSM recebe OIDC do GitHub Actions e sua política aceita somente
-o repositório canônico, tag protegida, Environment `beta-release` e o
-`job_workflow_ref` pinado no manifesto. O Environment exige dois revisores, ambos
-distintos do solicitante, e nega pull request, fork e branch; um workflow alterado
+assinatura remoto/HSM recebe OIDC do GitHub Actions e valida diretamente os claims
+do JWT contra política própria, imutável para o job e administrada fora do
+repositório: issuer e audience literais, repository canônico, tag/ref protegida,
+SHA do workflow, Environment `beta-release` e dois approvers distintos do
+solicitante. Manifesto, parâmetros e conteúdo enviados pelo job nunca autorizam
+assinatura. Alterar essa allowlist requer controle administrativo separado e dois
+responsáveis. O Environment nega pull request, fork e branch; workflow alterado
 não ganha capacidade de assinatura apenas por estar em branch protegida. Cada
 assinatura gera auditoria imutável com repositório, tag, SHA, workflow e operador.
 A credencial de notarização fica em cofre separado, com escopo exclusivo de
