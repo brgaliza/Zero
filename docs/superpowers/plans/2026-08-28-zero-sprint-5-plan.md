@@ -44,12 +44,16 @@ rollback atômico.
 
 6. **Instalador macOS.** Construir app/DMG universal; validar runtime, política,
    chave, assinatura, checksum e bundle Sigstore antes da extração. Implementar
+   manifesto JCS embutido/assinado que vincula versão, tag e digest do tarball ao
+   DMG, com falha fechada em divergência. Implementar
    UI fechada por `code`/`stage`/`next_action_id`, sem interpolação, e testes de
-   injeção de segredo. Só depois desse item existe asset instalável.
+   injeção de segredo e mistura de assets. Só depois desse item existe asset instalável.
 
 7. **Guia e suporte.** Gerar `GUIA-BETA-pt-BR.md` sem placeholders, com os dois
    ramos de PATH, instalação manual de Node/Docker, verificação do app, criação,
-   validação, shutdown, report e rollback.
+   validação, shutdown, report e rollback. A verificação fornece bloco literal
+   `codesign` + `spctl`, TeamIdentifier e comparação com canal independente,
+   interrompendo o fluxo em divergência.
 
 8. **Pipeline de release.** Só agora criar caller por tag → signer reutilizável
    SHA-pinado, draft de release, tarball/DMG/guia/checksum/assinatura/Sigstore e
@@ -61,7 +65,9 @@ rollback atômico.
 9. **Gates.** Automatizar checks e fixtures; executar Human Gate em Mac limpo com
    Node 24 e 26/npm11, PATH aceito/recusado/fallback e rollback; e snapshot sem
    Node/npm/Docker/gerenciadores, comprovando ausência e seguindo links/telas.
-   Ambos validam asset do draft; qualquer falha bloqueia publicação.
+   Ambos validam asset do draft, executam literalmente o bloco `codesign`/`spctl`
+   e comparam Team ID pelo canal independente; fixtures e gate cobrem manifesto e
+   Team ID divergentes. Qualquer falha bloqueia publicação.
 
 ## Aceite da Sprint
 
