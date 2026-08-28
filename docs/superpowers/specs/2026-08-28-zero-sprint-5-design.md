@@ -67,7 +67,8 @@ quarentena, usar `xattr` ou contornar Gatekeeper.
 2. abrir o Terminal e executar o preflight independente copiado do guia
    (`node --version`, `npm --version` e `docker version`); se algum comando
    falhar, seguir o link oficial e a instrução concreta correspondente antes de
-   instalar o Zero;
+   instalar o Zero. Somente npm `11.x` permite avançar; npm 10 ou 12+ mostra a
+   versão encontrada e o mesmo link oficial;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
 4. baixar o DMG para Downloads, abri-lo, arrastar `Zero Beta Installer.app` para
    Aplicativos e executar, antes da primeira abertura, o bloco completo copiado
@@ -81,17 +82,21 @@ quarentena, usar `xattr` ou contornar Gatekeeper.
    trilhas completas do guia: todos os comandos usam `zero` se aceita ou
    `~/.zero/bin/zero` se recusada. Confirmar a versão e executar `setup` pela
    trilha indicada, resolvendo somente o item apontado;
-6. criar projeto `essential` com respostas transcritas no guia (nome, descrição,
-   slug, pasta sugerida, perfil `essential`, início `não` e confirmação `sim`),
-   entrar na pasta impressa e executar `zero up`;
+6. copiar o comando de criação renderizado na trilha escolhida (`zero new` ou
+   `~/.zero/bin/zero new`) e responder exatamente nome, descrição, slug, pasta
+   sugerida, perfil `essential`, início `não` e confirmação `sim`; copiar sem
+   edição o próximo bloco já impresso pela CLI, que entra na pasta criada e
+   executa o `up` da mesma trilha;
 7. abrir a URL e executar a validação que o Zero imprimir;
 8. encerrar com `zero down` quando desejar.
 
 O gerador substitui a forma de comando escolhida em todas as ocorrências, inclusive
 versão, setup, criação, validação, up/down, report e rollback; não mistura os
-dois ramos. O Zero deve imprimir a pasta, URL e próximo comando de validação de
-modo que o guia não exija inferência de portas, `cd` ou rota de health. Capturas
-entram somente para abrir Terminal e reconhecer Docker Desktop pronto.
+dois ramos. O template contém o bloco literal de `new`, suas respostas, e o bloco
+literal de `cd` seguido de `up` produzido para aquela pasta. O Zero deve imprimir
+esses blocos, a pasta, URL e próximo comando de validação de modo que o guia não
+exija inferência de portas, `cd` ou rota de health. Capturas entram somente para
+abrir Terminal e reconhecer Docker Desktop pronto.
 
 ## Diagnóstico, suporte e rollback
 
@@ -102,7 +107,8 @@ aceitas seguem o contrato atual: Node `>=24` e npm `11.x`; qualquer outro major
 de npm bloqueia criação/operação. Nova faixa só entra após gates de compatibilidade
 no preflight, instalador e `zero setup`; a implementação também alinha
 `engines.npm` a `>=11 <12`. Testes cobrem Node 24, Node 26, npm 11 e versões
-antigas/incompatíveis.
+antigas/incompatíveis. Em particular, npm 10 e npm 12+ devem falhar, antes de
+instalar, criar ou operar, no preflight, instalador e CLI.
 
 `zero report` gera `~/.zero/reports/zero-report.json` com arquivo `0600` e
 diretórios `~/.zero`/`reports` `0700`; substitui de forma atômica somente o
@@ -201,6 +207,9 @@ release; CI Linux continua complementar, não substituta.
   observados; não há SLA que dependa de rede ou primeiro pull.
 - A instalação limpa e o Human Gate exercitam tanto a trilha com `zero` no PATH
   quanto a trilha integral com `~/.zero/bin/zero`.
+- O Human Gate copia, sem edição manual, o bloco de criação e o bloco de entrada/
+  `up` impressos pela CLI; npm 10 e npm 12+ falham antes de instalar, criar ou
+  operar, e npm 11 conclui a trilha.
 - O fluxo principal precisa concluir para aceitar a sprint. Relato seguro é
   métrica de suporte, não substituto do sucesso.
 - Teste de instalação limpa, pacote, gauntlet Docker e validação do asset final
