@@ -39,12 +39,14 @@ publicado junto ao asset não é tratado como autenticação.
 ## Guia de beta
 
 O workflow gera e anexa `GUIA-BETA-pt-BR.md` a cada release; não há placeholders.
-O template obrigatório preenche URL exata do `.app`, caminho literal em Downloads,
-comando completo `spctl -a -vv "/Users/$USER/Downloads/Zero Beta Installer.app"`,
-Team ID, fingerprint, URL oficial de cada pré-requisito, caminho de `zero report`
-e texto esperado de sucesso/falha. Os valores a comparar chegam também pela
-mensagem de boas-vindas, em canal independente. O guia contém uma trilha única,
-em blocos de copiar e colar e resultado esperado após cada ação:
+O template obrigatório preenche URL exata de
+`Zero-Beta-Installer-vX.Y.Z.dmg`, caminho literal em Downloads, instrução para
+abrir o DMG e arrastar o app para Aplicativos, comando completo
+`spctl -a -vv "/Applications/Zero Beta Installer.app"`, Team ID, fingerprint,
+URL oficial de cada pré-requisito, caminho de `zero report` e texto esperado de
+sucesso/falha. Os valores a comparar chegam também pela mensagem de boas-vindas,
+em canal independente. O guia contém uma trilha única, em blocos de copiar e
+colar e resultado esperado após cada ação:
 
 1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
 2. abrir o Terminal e executar o preflight independente copiado do guia
@@ -52,10 +54,10 @@ em blocos de copiar e colar e resultado esperado após cada ação:
    falhar, seguir o link oficial e a instrução concreta correspondente antes de
    instalar o Zero;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
-4. baixar `Zero Beta Installer.app` para Downloads e executar o comando completo
-   copiado do guia; comparar Team ID/fingerprint exibidos com a mensagem de
-   boas-vindas recebida por canal independente; divergência interrompe o fluxo.
-   O instalador verifica automaticamente
+4. baixar o DMG para Downloads, abri-lo, arrastar `Zero Beta Installer.app` para
+   Aplicativos e executar o comando completo copiado do guia; comparar
+   Team ID/fingerprint exibidos com a mensagem de boas-vindas recebida por canal
+   independente; divergência interrompe o fluxo. O instalador verifica automaticamente
    assinatura, fingerprint, provenance e checksum antes de instalar o tarball
    com lifecycle scripts desabilitados, e para sem instalar se algo falhar;
 5. confirmar `zero --version`, executar `zero setup` e resolver somente o item
@@ -130,21 +132,24 @@ quarto asset `provenance.intoto.jsonl`. O gate e o instalador validam a assinatu
 DSSE com a raiz Sigstore confiável, certificado Fulcio e identidade OIDC; exigem
 issuer GitHub Actions, subject do repositório canônico, workflow path permitido,
 ref/tag exata, predicate type SLSA aprovado, digest idêntico e entrada de
-transparência Rekor com prova de inclusão válida. Ausência, assinatura inválida,
-certificado expirado/revogado ou campo fora da política falha fechado. Testes
-adulteram assinatura, certificado/identidade, inclusão e cada campo de política.
+transparência Rekor com prova de inclusão válida. Certificado Fulcio pode estar
+expirado no momento da instalação somente se a prova Rekor demonstrar que estava
+válido no instante assinado; cadeia inválida, revogação aplicável, identidade fora
+da política ou prova ausente/inválida falha fechado. Testes adulteram assinatura,
+certificado/identidade, inclusão e cada campo de política.
 A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
 apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
-`Zero Beta Installer.app` é asset operacional da release. É aplicação macOS
-universal, assinada e notarizada pela identidade de distribuição do Zero;
+`Zero-Beta-Installer-vX.Y.Z.dmg` é o asset operacional da release e contém
+`Zero Beta Installer.app`. A aplicação macOS universal é assinada e notarizada
+pela identidade de distribuição do Zero;
 Gatekeeper e o preflight manual verificam Team ID/certificado allowlisted antes
 de abrir. A mensagem independente autentica também o instalador. Ela contém o verificador de
 release e orquestrador de instalação, usa fingerprint embutido e allowlist de
 repositório/workflow, mostra progresso e nunca executa shell remoto. Exige
 Node/npm já aprovados pelo preflight, instala somente tarball verificado com
 lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
-produz, assina, verifica e anexa o app junto aos assets.
+produz, assina, verifica e anexa o DMG junto aos assets.
 
 Antes de publicar, um Human Gate executa a trilha literal em Mac Apple Silicon
 sem Zero, checkout ou estado anterior, com macOS 14+, Node/npm compatíveis e
@@ -155,7 +160,7 @@ substituta.
 
 ## Aceite
 
-- A release publicada contém instalador macOS, tarball, checksum, assinatura e
+- A release publicada contém DMG do instalador macOS, tarball, checksum, assinatura e
   provenance, com tag
   verificáveis, sem secrets ou estado local.
 - Um Mac sem checkout instala o asset final, executa setup e cria/valida um
