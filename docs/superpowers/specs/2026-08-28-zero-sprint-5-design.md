@@ -44,8 +44,9 @@ copiar e colar e resultado esperado após cada ação:
    falhar, seguir o link oficial e a instrução concreta correspondente antes de
    instalar o Zero;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
-4. baixar `zero-vX.Y.Z.tgz` e instalar com `npm install -g --ignore-scripts
-   ./zero-vX.Y.Z.tgz`, sem `sudo`;
+4. baixar e abrir `Zero Beta Installer.app`; ele verifica automaticamente
+   assinatura, fingerprint, provenance e checksum antes de instalar o tarball
+   com lifecycle scripts desabilitados, e para sem instalar se algo falhar;
 5. confirmar `zero --version`, executar `zero setup` e resolver somente o item
    indicado;
 6. criar projeto `essential` com respostas transcritas no guia (nome, descrição,
@@ -62,8 +63,9 @@ somente para abrir Terminal e reconhecer Docker Desktop pronto.
 
 `zero setup` continua somente leitura, mas distingue Docker ausente, instalado
 com Desktop parado, daemon inacessível, transporte remoto recusado e pronto.
-Explica o que falta, por que importa, link oficial e próxima ação. Node 24/npm
-11 é o par suportado; versões diferentes mostram a versão encontrada.
+Explica o que falta, por que importa, link oficial e próxima ação. As únicas
+faixas aceitas são Node `>=24 <25` e npm `>=11 <12`; qualquer outra versão
+bloqueia criação/operação, mostra a versão encontrada e a ação de correção.
 
 `zero report` gera arquivo JSON `0600` em diretório previsível e privado do Zero
 e aceita somente allowlist de campos: versão Zero, versão macOS, arquitetura,
@@ -76,11 +78,12 @@ suporte cobre comando ausente, PATH, Docker, permissão global e falha de projet
 instrui anexar somente esse arquivo e informar a etapa. Notas da release definem
 canal, responsável e prazo de resposta.
 
-Rollback preserva projetos: remove apenas a CLI global atual e instala o tarball
-da versão anterior aprovada. A nota publica matriz CLI↔schema/template e o
-rollback executa preflight de manifestos existentes antes de alterar a instalação;
-se algum projeto não for suportado, recusa e mostra a versão mínima compatível.
-Rollback não toca containers, volumes ou arquivos de projetos.
+Rollback é transacional: primeiro instala a versão anterior em prefixo temporário,
+executa `zero --version` e `zero setup`, e verifica a matriz CLI↔schema/template
+contra manifestos existentes. Só após todos os checks troca a instalação global;
+falha preserva a CLI atual e remove staging. Se algum projeto não for suportado,
+recusa e mostra a versão mínima compatível. Rollback não toca containers, volumes
+ou arquivos de projetos.
 
 ## Controles verificáveis de publicação
 
@@ -94,8 +97,17 @@ Além de `SHA256SUMS.asc`, o job emite atestação de proveniência DSSE vincula
 digest do tarball, ao SHA do commit, à tag e ao ID do workflow, e a anexa como
 quarto asset `provenance.intoto.jsonl`. O gate verifica emissor, repositório,
 workflow e digest antes de publicar. A instalação deve parar se a verificação de
-fingerprint, assinatura ou checksum falhar; o guia fornece o comando concreto e
+fingerprint, assinatura ou checksum falhar; o instalador apresenta a causa e
 orienta contatar suporte, sem instalar o arquivo.
+
+`Zero Beta Installer.app` é asset operacional da release. É aplicação macOS
+universal, assinada e notarizada pela identidade de distribuição do Zero;
+Gatekeeper verifica sua assinatura antes de abrir. Ela contém o verificador de
+release e orquestrador de instalação, usa fingerprint embutido e allowlist de
+repositório/workflow, mostra progresso e nunca executa shell remoto. Exige
+Node/npm já aprovados pelo preflight, instala somente tarball verificado com
+lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
+produz, assina, verifica e anexa o app junto aos assets.
 
 Antes de publicar, um Human Gate executa a trilha literal em Mac Apple Silicon
 limpo com Docker Desktop, registra versão macOS, tempos, screenshots dos passos
@@ -104,7 +116,8 @@ continua complementar, não substituta.
 
 ## Aceite
 
-- A release publicada contém tarball, checksum, assinatura e provenance, com tag
+- A release publicada contém instalador macOS, tarball, checksum, assinatura e
+  provenance, com tag
   verificáveis, sem secrets ou estado local.
 - Um Mac sem checkout instala o asset final, executa setup e cria/valida um
   projeto `essential` seguindo literalmente o guia. A auditoria registra tempos
