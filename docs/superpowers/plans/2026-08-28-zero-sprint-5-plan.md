@@ -33,16 +33,19 @@ rollback atômico.
    traversal, duplicidade ou Unicode ambíguo, com limites de entradas/tamanho.
    Testar TOCTOU, cada tipo proibido e archive bomb.
 
-5. **Instalador macOS.** Construir app/DMG universal; validar runtime, política,
-   chave, assinatura, checksum e bundle Sigstore antes da extração. Implementar
-   UI fechada por `code`/`stage`/`next_action_id`, sem interpolação, e testes de
-   injeção de segredo. Só depois desse item existe asset instalável.
-
-6. **Política e cerimônia de confiança.** Antes de qualquer release, criar
+5. **Política e cerimônia de confiança.** Antes de qualquer release ou instalador,
+   criar
    `release-policy.v1.json` JCS concreto e compilado no app, trust bundle Fulcio/
    Rekor, chave pública/rotação e inventário. Provisionar HSM remoto por OIDC,
    Developer ID/notarização, broker JWS de dois aprovadores, GitHub App read-only
-   e Environment; testar negação para PR/fork/claim/review inválidos.
+   e Environment; testar política sem curingas/valores-modelo, todos os claims
+   OIDC, dois humanos externos ao actor/tag, JWS anti-replay/TTL/reconsulta e
+   auditoria imutável, além de negação para PR/fork/claim/review inválidos.
+
+6. **Instalador macOS.** Construir app/DMG universal; validar runtime, política,
+   chave, assinatura, checksum e bundle Sigstore antes da extração. Implementar
+   UI fechada por `code`/`stage`/`next_action_id`, sem interpolação, e testes de
+   injeção de segredo. Só depois desse item existe asset instalável.
 
 7. **Guia e suporte.** Gerar `GUIA-BETA-pt-BR.md` sem placeholders, com os dois
    ramos de PATH, instalação manual de Node/Docker, verificação do app, criação,
@@ -51,7 +54,9 @@ rollback atômico.
 8. **Pipeline de release.** Só agora criar caller por tag → signer reutilizável
    SHA-pinado, draft de release, tarball/DMG/guia/checksum/assinatura/Sigstore e
    validação do asset baixado antes de publicar. Cobrir DSSE/Fulcio/Rekor offline,
-   claims/OIDs, checkpoint e adulteração de todos os campos.
+   claims/OIDs, checkpoint e adulteração de todos os campos. Exigir tag anotada,
+   assinada e protegida, versão/commit corretos e recusar tag, versão ou asset
+   divergente antes de publicar.
 
 9. **Gates.** Automatizar checks e fixtures; executar Human Gate em Mac limpo com
    Node 24 e 26/npm11, PATH aceito/recusado/fallback e rollback; e snapshot sem
@@ -66,11 +71,15 @@ rollback atômico.
 - Instalação, atualização e rollback preservam o comando anterior em falhas e não
   tocam projetos, containers ou volumes; lock, metadata/ref anterior e staging
   órfão resistem a download/staging/swap/shim/crash/concorrência.
+- Rollback baixa a release anterior somente pelos mesmos controles de assinatura,
+  provenance e política; valida matriz CLI↔schema/template antes do swap.
 - Saídas persistidas e de interface não expõem segredo, path pessoal ou erro bruto.
 - Apenas Node 24/26 e npm 11 avançam; Node 23/27+, npm 10/12+ falham antes de
   instalar/criar/operar. Report é `0600`, diretórios `0700` e schema allowlisted.
 - `new` imprime blocos literais de criação e `cd && up`; validação offline GPG,
   DSSE/Fulcio/Rekor/checkpoint e UI fechada passam nas fixtures adversariais.
+- `zero setup` distingue Docker ausente, Desktop parado, daemon inacessível e
+  transporte remoto recusado, cada um com link oficial e próxima ação testável.
 - Gates automatizados e os dois Human Gates passam antes da release.
 
 ## Corte de escopo
