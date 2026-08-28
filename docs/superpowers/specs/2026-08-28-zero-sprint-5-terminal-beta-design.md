@@ -15,15 +15,20 @@ crie seu primeiro projeto `essential` sem acessar o repositório.
 
 Cada release privada `vX.Y.Z` entrega três assets: `zero-vX.Y.Z.tgz`,
 `SHA256SUMS` e `GUIA-BETA-pt-BR.md`. O tester recebe o link privado da release
-por canal combinado com a equipe. O guia apresenta a tag e o SHA-256 esperado;
-o hash confere integridade do download, mas a autenticidade do link depende do
-canal privado de convite. Não há DMG, app macOS, Gatekeeper, certificado Apple,
+e o SHA-256 exato em mensagem individual por canal independente previamente
+combinado com a equipe. Ele compara os três valores: mensagem, `SHA256SUMS` e
+resultado de `shasum`. Divergência interrompe a instalação. O hash confere
+integridade e a mensagem externa autentica a referência esperada; a página de
+release nunca é a única fonte de confiança. Não há DMG, app macOS, Gatekeeper, certificado Apple,
 notarização, instalação por `sudo`, registry npm ou auto-update nesta sprint.
 
 O pacote é produzido por `npm pack --ignore-scripts` no workspace
-`@brunogaliza/zero`. Antes de publicar, a CI executa `npm run check`, gera o
-tarball determinístico e valida seu inventário. O workflow só anexa o guia se a
-tag, o nome do asset e o checksum coincidirem. A release permanece privada.
+`@brunogaliza/zero`. Antes de qualquer tag, um workflow manual de candidate
+executa `npm run check`, gera o tarball determinístico, valida a versão interna e
+o inventário, e entrega um artefato privado para os Gates A e B. Só evidências
+aprovadas dos dois Gates permitem criar a tag protegida. O workflow de publicação
+da tag recria os assets do commit tagueado, confere tag, versão, nome e checksum
+e cria uma GitHub Release privada; somente esse job recebe `contents: write`.
 
 ## Fluxo literal do beta tester
 
@@ -42,7 +47,7 @@ que fazer se falhar.
 3. O tester baixa `zero-vX.Y.Z.tgz` da release privada no navegador. No Terminal,
    executa um bloco que cria uma pasta privada em Downloads, move o arquivo para
    ela, calcula `shasum -a 256` e interrompe se o valor não for exatamente o
-   checksum mostrado no guia.
+   checksum da mensagem externa e do guia.
 4. Depois da conferência, o tester executa um instalador local entregue dentro do
    próprio tarball. Ele extrai somente o inventário permitido para staging `0700`,
    valida versão e arquivos, instala sob `~/.zero/cli/versions/vX.Y.Z`, troca
@@ -62,8 +67,8 @@ staging privado, rejeita paths fora do pacote, preserva a versão atual se
 download, validação ou swap falhar e registra a versão anterior para rollback.
 `zero report` continua limitado a dados sanitizados, com arquivo `0600`.
 
-Se o checksum divergir, o guia manda apagar somente o arquivo recebido e pedir
-novo link ao suporte. Se o Node, npm ou Docker continuarem incompatíveis, o
+Se algum dos três checksums divergir, o guia manda apagar somente o arquivo
+recebido e pedir novo link ao suporte. Se o Node, npm ou Docker continuarem incompatíveis, o
 tester para e anexa apenas o relatório gerado por `zero report`; nunca envia
 prints de terminal com dados pessoais, senhas ou tokens.
 
