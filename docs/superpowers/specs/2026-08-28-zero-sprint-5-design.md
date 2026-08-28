@@ -1,97 +1,85 @@
 # Zero — Design da Sprint 5: entrega para beta tester
 
-**Status:** proposto em 28 de agosto de 2026  
+**Status:** revisado em 28 de agosto de 2026  
 **Dependência:** Sprint 4 aprovada
 
 ## Objetivo
 
-Permitir que um beta tester em macOS Apple Silicon instale uma versão testada do
-Zero e crie seu primeiro projeto sem precisar entender Node, npm, Docker ou a
-estrutura do repositório. A pessoa deve conseguir seguir um roteiro linear,
-copiando comandos quando necessário e recebendo ações claras quando faltar um
-pré-requisito.
+Permitir que um beta tester em macOS Apple Silicon instale uma versão validada do
+Zero e crie seu primeiro projeto sem conhecer Node, npm, Docker ou o repositório.
 
 ## Escopo
 
-### Incluído
+Inclui release GitHub versionada, guia não técnico em pt-BR, diagnóstico de
+pré-requisitos, `zero report` sanitizado, roteiro `essential`, rollback e teste
+de instalação limpa. Não inclui instalação automática de ferramentas do sistema,
+registry npm, auto-update, telemetria, Linux/Windows, novos perfis ou cloud.
 
-- Release GitHub versionada com tarball npm, checksum SHA-256 e notas de versão.
-- Guia de instalação e primeiro uso em português do Brasil, dirigido a pessoa
-  não técnica.
-- Diagnóstico de pré-requisitos em `zero setup`, com mensagem orientada a ação.
-- Roteiro de criação e validação de um projeto `essential`.
-- Guia de recuperação e modelo de relato de suporte sem segredos.
-- Teste de instalação limpa a partir do tarball publicado, sem checkout do Zero.
+## Release autenticável e reproduzível
 
-### Fora do escopo
+Cada release `vX.Y.Z` nasce de tag Git anotada, assinada e protegida, apontando
+para o commit validado. O workflow, acionado somente por essa tag, executa em
+runner limpo: `npm run check`, gauntlet Docker dos dois perfis e teste de
+instalação limpa. Então gera uma única saída de `npm pack --ignore-scripts`,
+renomeia para `zero-vX.Y.Z.tgz`, cria `SHA256SUMS` e `SHA256SUMS.asc`, baixa o
+asset final e o valida antes de publicar.
 
-- Instalação automática ou silenciosa de Node, npm, Docker Desktop, Homebrew ou
-  ferramentas do sistema.
-- Publicação em registry npm, auto-update, telemetria ou coleta de dados.
-- Suporte oficial a Linux, Windows ou arquiteturas fora de Apple Silicon.
-- Novo framework, perfil, serviço local ou deploy em nuvem.
+As notas registram SHA do commit, SHA-256, versão, ID do workflow, limitações,
+canal de suporte e rollback. O workflow recusa versão divergente, asset existente
+ou falha em qualquer gate. Só o job de upload recebe `contents: write`.
 
-## Contrato de distribuição
+A chave pública e seu fingerprint ficam no repositório e chegam ao tester por
+canal independente do asset. A assinatura/hash são obrigatórios no gate; no guia
+para leigos, são recomendados com alternativa clara de confirmar o fingerprint
+com o suporte. Hash publicado junto ao asset não é tratado como autenticação.
 
-Cada beta sai como GitHub Release `v<semver>` com:
+## Guia de beta
 
-- `zero-v<semver>.tgz`, gerado por `npm pack` após as verificações exigidas;
-- arquivo `SHA256SUMS` com o hash do tarball;
-- notas de release com escopo, pré-requisitos, limitações conhecidas e instrução
-  de rollback;
-- tag Git apontando para o commit exato validado.
+O guia contém uma trilha única, com comandos concretos da release, em blocos de
+copiar e colar e resultado esperado após cada ação:
 
-O guia instrui download do asset, verificação opcional do hash e instalação por
-`npm install -g ./zero-v<semver>.tgz`. Ele não depende de login no npm. Se a
-release estiver em repositório privado, o beta tester recebe acesso de leitura
-ao repositório ou o arquivo é compartilhado por canal autorizado.
-
-## Experiência do guia
-
-O guia tem uma única trilha numerada, com frases curtas e um resultado esperado
-após cada ação:
-
-1. localizar e abrir o Terminal no Mac;
-2. instalar Node.js LTS e npm pelos links oficiais, quando o `zero setup`
-   indicar ausência ou versão incompatível;
+1. confirmar macOS 14+, Apple Silicon, 10 GB livres e rede estável;
+2. abrir o Terminal e instalar Node 24/npm 11 pelos links oficiais se `zero
+   setup` indicar ausência ou incompatibilidade; reiniciar Terminal se instruído;
 3. instalar, abrir e aguardar Docker Desktop ficar pronto;
-4. baixar e instalar o tarball, confirmar com `zero --version`;
-5. executar `zero setup` e resolver exclusivamente o item que ele indicar;
-6. criar projeto `essential` pelo fluxo guiado;
-7. confirmar página local, `zero status` e `/api/health`;
+4. baixar `zero-vX.Y.Z.tgz` e instalar com `npm install -g --ignore-scripts
+   ./zero-vX.Y.Z.tgz`, sem `sudo`;
+5. confirmar `zero --version`, executar `zero setup` e resolver somente o item
+   indicado;
+6. criar projeto `essential`, entrar na pasta impressa e executar `zero up`;
+7. abrir a URL e executar a validação que o Zero imprimir;
 8. encerrar com `zero down` quando desejar.
 
-Todo comando aparece em bloco isolado para copiar e colar. Explicações técnicas
-ficam escondidas em “Por que isso é necessário?”, sem interromper o caminho
-principal. Capturas de tela entram somente para tarefas visuais que texto não
-resolve bem: abrir o Terminal, iniciar Docker Desktop e reconhecer seu estado
-pronto.
+O Zero deve imprimir a pasta, URL e próximo comando de validação de modo que o
+guia não exija inferência de portas, `cd` ou rota de health. Capturas entram
+somente para abrir Terminal e reconhecer Docker Desktop pronto.
 
-## Diagnóstico e suporte
+## Diagnóstico, suporte e rollback
 
-`zero setup` mantém comportamento somente leitura e não instala programas. Para
-cada pré-requisito, informa em linguagem simples: o que falta, por que o Zero
-precisa disso, link oficial e a próxima ação. Resultados bem-sucedidos deixam
-claro que nenhum passo adicional é necessário.
+`zero setup` continua somente leitura, mas distingue Docker ausente, instalado
+com Desktop parado, daemon inacessível, transporte remoto recusado e pronto.
+Explica o que falta, por que importa, link oficial e próxima ação. Node 24/npm
+11 é o par suportado; versões diferentes mostram a versão encontrada.
 
-O guia de suporte usa uma árvore curta: comando não encontrado, Node/npm
-incompatível, Docker não iniciado, falha de permissão de instalação global e
-falha ao iniciar o projeto. Cada ramo contém somente comando seguro e resultado
-esperado. O template de relato inclui versão do Zero, macOS, resultado de `zero
-setup`, comando executado e mensagem sanitizada; proíbe anexar `.env.local`,
-senhas, URLs autenticadas e logs integrais.
+`zero report` gera arquivo limitado e sanitizado com versão Zero, macOS,
+resultado estruturado de setup, versões Node/npm/Docker e códigos de erro. Ele
+exclui `.env.local`, URLs autenticadas, tokens, senhas e logs brutos. O guia de
+suporte cobre comando ausente, PATH, Docker, permissão global e falha de projeto;
+instrui anexar somente esse arquivo e informar a etapa. Notas da release definem
+canal, responsável e prazo de resposta.
 
-## Validação e aceite
+Rollback preserva projetos: remove apenas a CLI global atual e instala o tarball
+da versão anterior aprovada. A nota informa a última versão compatível e deixa
+explícito que rollback não toca containers, volumes ou arquivos de projetos.
 
-- A release só é criada após `npm run check`, gauntlet Docker dos dois perfis e
-  teste de instalação limpa do tarball.
-- Um Mac sem checkout do repositório instala o tarball, executa `zero --version`
-  e `zero setup`, e cria/valida projeto `essential` seguindo literalmente o
-  guia em até dez minutos, em máquina com Docker e Node já instalados.
-- O guia aponta links oficiais e comandos copiados sem placeholders, secrets ou
-  dependência de conhecimento técnico implícito.
-- O tarball, release, checksums, documentação e saída de suporte não incluem
-  segredos, `.env.local`, estado local, logs brutos ou artefatos não permitidos.
+## Aceite
 
-Uma Sprint 5 é aceita quando uma pessoa beta consegue instalar e usar a versão
-de release sozinha, ou relatar bloqueio de forma segura e acionável.
+- A release publicada contém somente os três assets previstos, provenance e tag
+  verificáveis, sem secrets ou estado local.
+- Um Mac sem checkout instala o asset final, executa setup e cria/valida um
+  projeto `essential` seguindo literalmente o guia. A auditoria registra tempos
+  observados; não há SLA que dependa de rede ou primeiro pull.
+- O fluxo principal precisa concluir para aceitar a sprint. Relato seguro é
+  métrica de suporte, não substituto do sucesso.
+- Teste de instalação limpa, pacote, gauntlet Docker e validação do asset final
+  passam antes da release.
