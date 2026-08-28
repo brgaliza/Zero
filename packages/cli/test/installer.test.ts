@@ -2,10 +2,19 @@ import { lstat, mkdtemp, readlink, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { acquireInstallLock, activateInstalledVersion, createPrivateStaging, promoteStaging, rollbackInstalledVersion, versionDirectory } from "../src/installer.js";
+import {
+  acquireInstallLock,
+  activateInstalledVersion,
+  createPrivateStaging,
+  promoteStaging,
+  rollbackInstalledVersion,
+  versionDirectory,
+} from "../src/installer.js";
 
 const roots: string[] = [];
-afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true }))); });
+afterEach(async () => {
+  await Promise.all(roots.splice(0).map((root) => rm(root, { force: true, recursive: true })));
+});
 
 describe("installer layout", () => {
   it("troca current atomicamente e mantém shim privado", async () => {

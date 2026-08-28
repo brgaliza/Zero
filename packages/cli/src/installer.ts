@@ -1,4 +1,15 @@
-import { chmod, mkdir, mkdtemp, open, readdir, readlink, rename, rm, symlink, writeFile } from "node:fs/promises";
+import {
+  chmod,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readlink,
+  rename,
+  rm,
+  symlink,
+  writeFile,
+} from "node:fs/promises";
 import { join } from "node:path";
 
 const VERSION = /^v\d+\.\d+\.\d+(?:-[a-z0-9.-]+)?$/u;
@@ -14,13 +25,18 @@ export async function acquireInstallLock(rootDirectory: string): Promise<() => P
   const lock = join(cliDirectory, ".operation.lock");
   try {
     const handle = await open(lock, "wx", 0o600);
-    await handle.writeFile(JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }) + "\n");
+    await handle.writeFile(
+      JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() }) + "\n",
+    );
     await handle.close();
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new Error("Outra operação do Zero já está em curso.");
+    if ((error as NodeJS.ErrnoException).code === "EEXIST")
+      throw new Error("Outra operação do Zero já está em curso.");
     throw error;
   }
-  return async () => { await rm(lock, { force: true }); };
+  return async () => {
+    await rm(lock, { force: true });
+  };
 }
 
 export async function createPrivateStaging(rootDirectory: string): Promise<string> {
@@ -32,7 +48,11 @@ export async function createPrivateStaging(rootDirectory: string): Promise<strin
   return staging;
 }
 
-export async function promoteStaging(rootDirectory: string, staging: string, version: string): Promise<void> {
+export async function promoteStaging(
+  rootDirectory: string,
+  staging: string,
+  version: string,
+): Promise<void> {
   const destination = versionDirectory(rootDirectory, version);
   await mkdir(join(rootDirectory, "cli", "versions"), { recursive: true, mode: 0o700 });
   await rename(staging, destination);
@@ -43,7 +63,9 @@ export async function rollbackInstalledVersion(rootDirectory: string): Promise<s
   const current = await readlink(join(rootDirectory, "cli", "current"));
   const currentVersion = current.split("/").at(-1);
   if (currentVersion === undefined) throw new Error("Versão ativa inválida.");
-  const versions = (await readdir(join(rootDirectory, "cli", "versions"))).filter((version) => VERSION.test(version)).sort();
+  const versions = (await readdir(join(rootDirectory, "cli", "versions")))
+    .filter((version) => VERSION.test(version))
+    .sort();
   const candidates = versions.filter((version) => version !== currentVersion);
   const target = candidates.at(-1);
   if (target === undefined) throw new Error("Não há versão anterior instalada para rollback.");
@@ -51,7 +73,10 @@ export async function rollbackInstalledVersion(rootDirectory: string): Promise<s
   return target;
 }
 
-export async function activateInstalledVersion(rootDirectory: string, version: string): Promise<void> {
+export async function activateInstalledVersion(
+  rootDirectory: string,
+  version: string,
+): Promise<void> {
   const target = versionDirectory(rootDirectory, version);
   const cliDirectory = join(rootDirectory, "cli");
   const binDirectory = join(rootDirectory, "bin");
@@ -62,6 +87,8 @@ export async function activateInstalledVersion(rootDirectory: string, version: s
   await symlink(target, temporary);
   await rename(temporary, current);
   const shim = join(binDirectory, "zero");
-  await writeFile(shim, "#!/bin/sh\nexec \"$HOME/.zero/cli/current/bin/zero\" \"$@\"\n", { mode: 0o700 });
+  await writeFile(shim, '#!/bin/sh\nexec "$HOME/.zero/cli/current/bin/zero" "$@"\n', {
+    mode: 0o700,
+  });
   await chmod(shim, 0o700);
 }
