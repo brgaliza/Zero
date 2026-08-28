@@ -94,6 +94,7 @@ const rootHelp = `Zero — fundador guiado de projetos web
 
 Uso:
   zero setup [--json]
+  zero report
   zero new
   zero new --config <arquivo> --yes
   zero new --resume <diretório>
@@ -109,6 +110,7 @@ Uso:
 
 Comandos disponíveis:
   setup  Verifica requisitos atuais e futuros da máquina.
+  report Gera diagnóstico sanitizado para suporte.
   new    Cria a fundação estática de um projeto.
   doctor Diagnostica o contrato e os pré-requisitos do projeto atual.
   up     Inicia banco, migrations, seed e aplicação do projeto atual.
@@ -128,6 +130,12 @@ const setupHelp = `Uso:
 Consulta apenas informações de leitura da máquina. Node 24 ou superior e npm 11 são
 requisitos atuais. Docker também é requisito atual; Git e GitHub CLI são
 opcionais para recursos posteriores. Nada é instalado, iniciado ou alterado.`;
+
+const reportHelp = `Uso:
+  zero report
+
+Gera ~/.zero/reports/zero-report.json para suporte. O arquivo contém somente
+versões e estados enumerados; não inclui caminhos, logs, URLs ou segredos.`;
 
 const newHelp = `Uso:
   zero new
@@ -396,6 +404,7 @@ export async function run(
     const target = options[0];
     if (target === "setup") process.stdout.write(`${setupHelp}\n`);
     else if (target === "new") process.stdout.write(`${newHelp}\n`);
+    else if (target === "report") process.stdout.write(`${reportHelp}\n`);
     else if (target === "doctor") process.stdout.write(`${doctorHelp}\n`);
     else if (target === "up") process.stdout.write(`${upHelp}\n`);
     else if (target === "down") process.stdout.write(`${downHelp}\n`);
@@ -424,6 +433,20 @@ export async function run(
     }
     writeResult({ ok: true, command: "setup", checks: setupChecks(runtime) }, json);
     return 0;
+  }
+  if (command === "report") {
+    if (options[0] === "--help" || options[0] === "-h") {
+      process.stdout.write(`${reportHelp}\n`);
+      return 0;
+    }
+    if (options.length > 0 || json) {
+      writeResult(fail("report", "INVALID_ARGUMENTS", 'Use "zero report" sem opções.'), json);
+      return 2;
+    }
+    const reportModule = await import("./" + "report.cjs");
+    const result = await reportModule.runReport({ zeroVersion: getVersion(), checks: setupChecks(runtime) });
+    writeResult({ command: "report", ...result }, false);
+    return result.exitCode;
   }
   if (command === "new") {
     if (options[0] === "--help" || options[0] === "-h") {

@@ -16,6 +16,7 @@ const logsOutputFile = new URL("logs.cjs", outputDirectory);
 const testOutputFile = new URL("test.cjs", outputDirectory);
 const buildOutputFile = new URL("build.cjs", outputDirectory);
 const recoverOutputFile = new URL("recover.cjs", outputDirectory);
+const reportOutputFile = new URL("report.cjs", outputDirectory);
 const templateSourceDirectory = new URL("../templates/", import.meta.url);
 const templateOutputDirectory = new URL("../packages/cli/templates/", import.meta.url);
 const schemaSourceDirectory = new URL("../schemas/", import.meta.url);
@@ -50,10 +51,20 @@ await build({
     "./logs.cjs",
     "./new.cjs",
     "./recover.cjs",
+    "./report.cjs",
     "./status.cjs",
     "./test.cjs",
     "./up.cjs",
   ],
+});
+
+await build({
+  bundle: true,
+  entryPoints: [fileURLToPath(new URL("../packages/cli/src/report.ts", import.meta.url))],
+  format: "cjs",
+  outfile: fileURLToPath(reportOutputFile),
+  platform: "node",
+  target: "node24",
 });
 
 await build({
