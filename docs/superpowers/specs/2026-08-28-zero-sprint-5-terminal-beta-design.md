@@ -1,6 +1,6 @@
 # Zero — Design revisado da Sprint 5: beta técnico por Terminal
 
-**Status:** proposto em 28 de agosto de 2026  
+**Status:** aprovado após Challenger independente em 28 de agosto de 2026  
 **Substitui para esta sprint:** distribuição por DMG, assinatura Developer ID e
 notarização previstas no design anterior.  
 **Dependência:** Sprint 4 aprovada

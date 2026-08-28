@@ -1,6 +1,6 @@
 # Zero — Plano da Sprint 5: beta técnico por Terminal
 
-**Status:** proposto  
+**Status:** aprovado após Challenger independente em 28 de agosto de 2026  
 **Design:** [beta técnico por Terminal](../specs/2026-08-28-zero-sprint-5-terminal-beta-design.md)  
 **Objetivo:** entregar uma release privada instalável por comandos copiados, sem
 DMG, conta Apple ou instalação global do npm.
