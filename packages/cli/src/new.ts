@@ -302,6 +302,9 @@ export async function runGuided(runtime: NewRuntime): Promise<NewResult> {
       exitCode: 0,
       code: "PROJECT_CREATED",
       message: "Fundação criada.",
+      nextAction: config.initialization.start
+        ? "Use zero status para acompanhar os serviços e zero logs db para o banco."
+        : "Entre na pasta criada e execute zero up para iniciar o ambiente local.",
       result,
     };
   } catch (error) {

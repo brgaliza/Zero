@@ -94,7 +94,11 @@ describe("zero new", () => {
     const answers = ["Minha Agenda", "Uma agenda pessoal", "", "projeto", "complete", "n", "s"];
     const result = await runGuided({ ...input, prompt: async () => answers.shift() ?? "" });
 
-    expect(result).toMatchObject({ ok: true, code: "PROJECT_CREATED" });
+    expect(result).toMatchObject({
+      ok: true,
+      code: "PROJECT_CREATED",
+      nextAction: "Entre na pasta criada e execute zero up para iniciar o ambiente local.",
+    });
     await expect(
       readFile(join(input.currentDirectory, "projeto", "zero.yaml"), "utf8"),
     ).resolves.toContain("profile: complete");

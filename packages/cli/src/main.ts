@@ -214,9 +214,9 @@ function setupChecks(runtime: CliRuntime): readonly SetupCheck[] {
   const nodeMajor = major(runtime.nodeVersion);
   const npm = runtime.probe("npm");
   const npmMajor = npm.kind === "detected" ? major(npm.version) : undefined;
+  const dockerProbe = runtime.probe("docker");
   const docker =
-    runtime.probeDocker?.() ??
-    (runtime.probe("docker").kind === "detected" ? "ready" : runtime.probe("docker").kind);
+    runtime.probeDocker?.() ?? (dockerProbe.kind === "detected" ? "ready" : dockerProbe.kind);
   const git = runtime.probe("git");
   const github = runtime.probe("gh");
 
@@ -327,7 +327,10 @@ function resultText(result: CommandResult): string {
     );
   }
   const checks = result.checks ?? [];
-  if (checks.length === 0) return wrap80(result.message ?? "Comando concluído.");
+  if (checks.length === 0)
+    return wrap80(
+      `${result.message ?? "Comando concluído."}${result.nextAction === undefined ? "" : `\nPróximo passo: ${result.nextAction}`}`,
+    );
   const stateLabels: Record<CheckState, string> = {
     blocked: "BLOQUEADOR",
     future: "SPRINT 2",
