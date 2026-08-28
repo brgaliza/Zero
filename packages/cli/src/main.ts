@@ -176,6 +176,10 @@ function major(version: string): number | undefined {
   return match?.[1] === undefined ? undefined : Number(match[1]);
 }
 
+function supportedNode(majorVersion: number | undefined): boolean {
+  return majorVersion === 24 || majorVersion === 26;
+}
+
 function setupChecks(runtime: CliRuntime): readonly SetupCheck[] {
   const nodeMajor = major(runtime.nodeVersion);
   const npm = runtime.probe("npm");
@@ -187,16 +191,16 @@ function setupChecks(runtime: CliRuntime): readonly SetupCheck[] {
   return [
     {
       id: "node",
-      label: "Node.js 24 ou superior",
-      state: nodeMajor !== undefined && nodeMajor >= 24 ? "ready" : "blocked",
+      label: "Node.js 24 ou 26",
+      state: supportedNode(nodeMajor) ? "ready" : "blocked",
       detail:
-        nodeMajor !== undefined && nodeMajor >= 24
+        supportedNode(nodeMajor)
           ? `Disponível (${runtime.nodeVersion}).`
-          : `Requer Node.js 24 ou superior; encontrado ${runtime.nodeVersion}.`,
+          : `Requer Node.js 24 ou 26; encontrado ${runtime.nodeVersion}.`,
       action:
-        nodeMajor !== undefined && nodeMajor >= 24
+        supportedNode(nodeMajor)
           ? "Nenhuma ação necessária."
-          : "Instale o Node.js 24 ou superior e execute zero setup novamente.",
+          : "Instale o Node.js 24 ou 26 e execute zero setup novamente.",
       url: OFFICIAL_URLS.node,
     },
     {

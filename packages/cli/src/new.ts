@@ -84,11 +84,11 @@ const major = (value: string | undefined): number | undefined => {
   return match?.[1] === undefined ? undefined : Number(match[1]);
 };
 function preflight(runtime: NewRuntime): NewResult | undefined {
-  if ((major(runtime.nodeVersion) ?? 0) < 24)
+  if (![24, 26].includes(major(runtime.nodeVersion) ?? 0))
     return fail(
       3,
       "PREFLIGHT_NODE_UNSUPPORTED",
-      "zero new requer Node.js 24 ou superior.",
+      "zero new requer Node.js 24 ou 26.",
       "Execute zero setup para diagnosticar a instalação.",
     );
   if (major(runtime.npmVersion) !== 11)
