@@ -216,13 +216,13 @@ Rekor. O payload DSSE é JCS (RFC 8785) e contém um in-toto Statement único de
 source (`repository`, `commitSha`, `releaseTag`), caller (`workflowRef`,
 `workflowSha`) e signer (`jobWorkflowRef`, `jobWorkflowSha`). O Bundle externo não
 precisa ser JCS, mas seu parser rejeita chaves duplicadas, tipos errados, bundle
-maior que 1 MiB e profundidade maior que 16. A tabela normativa é: SAN Fulcio =
-`jobWorkflowRef`; extensions GitHub OIDC V2 = `repository`, `ref`, `sha`,
+maior que 1 MiB e profundidade maior que 16. A tabela normativa usa SAN somente
+como identidade de conta; extensions GitHub OIDC V2 = `repository`, `ref`, `sha`,
 `workflow_ref`, `workflow_sha`, `job_workflow_ref`, `job_workflow_sha`; Statement
-usa os equivalentes camelCase. Cada campo aparece uma vez e todos têm igualdade
-byte a byte entre certificado, Statement e política. Subject digest, commit, tag,
-caller e signer devem coincidir exatamente; ausência, multiplicidade ou divergência
-falha fechado. O instalador usa biblioteca Sigstore pinada e trust bundle versionado
+usa os equivalentes camelCase. Cada campo aparece uma vez e é comparado segundo o
+mapeamento canônico abaixo; igualdade bruta só vale quando a representação é a
+mesma. Subject digest, commit, caller e signer devem coincidir exatamente; ausência,
+multiplicidade ou divergência falha fechado. O instalador usa biblioteca Sigstore pinada e trust bundle versionado
 embutido: raiz/intermediários Fulcio, chave/ID Rekor e checkpoint/política de log.
 Ele valida offline assinatura, inclusão e checkpoint; atualização do bundle só chega
 em novo instalador assinado por identidade já confiável. Certificado expirado após
@@ -250,9 +250,20 @@ UTF8String: `.1.8` issuer (`iss`), `.1.9` Build Signer URI
 (`https://github.com/` + `workflow_ref`) e `.1.19` Build Config Digest
 (`workflow_sha`), todos sob `1.3.6.1.4.1.57264`. O SAN OtherName `.1.7` é lido
 somente como identidade de conta, não como workflow. A transformação permitida é
-apenas `releaseTag = ref` sem o prefixo literal `refs/tags/`; os outros pares são
-iguais byte a byte. O parser rejeita OID, encoding, SAN, claim, transformação ou
-duplicidade inesperados; fixtures incluem certificado real de produção.
+apenas `releaseTag = ref` sem o prefixo literal `refs/tags/`, e prefixar
+`https://github.com/` ao comparar `.1.9` com `job_workflow_ref`, `.1.12` com
+`repository` e `.1.18` com `workflow_ref`; os outros pares são iguais byte a byte.
+O parser rejeita OID, encoding, SAN, claim, transformação ou duplicidade inesperados;
+fixtures incluem certificado real de produção.
+
+Antes da primeira release, uma cerimônia de bootstrap fora do repositório cria a
+política JCS `release-policy.v1.json`, assinada pela chave de release anterior/raiz
+e compilada no instalador. Ela contém valores concretos — nunca `owner/repo`,
+`SHA-40` ou curingas — para `repository` e `repository_id`, caminho/commit do
+caller e SHA do signer, Team ID e fingerprint Developer ID, fingerprint da chave de
+release, versão/digest do trust bundle e issuer/audience/chave do broker. CI, HSM e
+instalador recusam política ausente, valor-modelo ou campo que não corresponda
+exatamente; só tag/versão do release é variável e é validada contra `ref`/`sha`.
 A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
 apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
@@ -289,7 +300,12 @@ aprovações individuais imutáveis para `{repository_id, deployment_id,
 environment_id, run_id, run_attempt, ref, sha}`, usando IDs distintos e distintos
 do `actor_id`; inclui chave pública/versionamento e janela temporal, e só emite
 depois do deployment e antes da assinatura. O HSM valida JWS contra a chave do
-broker administrada fora do repositório e compara todos os campos ao JWT. Cache,
+broker administrada fora do repositório e compara todos os campos ao JWT. O JWS
+tem `iss`, `aud`, `jti`, `iat`, `nbf` e `exp` (validade máxima de 10 minutos); HSM
+persiste `jti` antes de assinar para impedir replay e consulta novamente o estado
+online. O broker mapeia contas GitHub para IDs humanos imutáveis de seu diretório
+externo; reviewers devem pertencer à allowlist e não podem ser o actor,
+criador/assinante da tag ou reutilizar a mesma identidade humana. Cache,
 paginação, retry, revogação, resposta parcial, ausente ou ambígua falham fechados.
 A auditoria imutável retém o JWS, IDs, hash da resposta, repositório, tag, SHA e
 workflow por sete anos. Alterar a allowlist requer controle administrativo separado
