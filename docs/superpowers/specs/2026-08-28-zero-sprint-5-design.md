@@ -144,9 +144,16 @@ inventário e modos allowlisted consome esse descritor e materializa o pacote em
 `<staging>/package`. O arquivo é apagado em falha e nunca se executa arquivo cuja
 verificação não tenha ocorrido no descritor consumido. O extrator aceita somente
 diretórios e arquivos regulares da lista de pacote, rejeita symlink, hardlink,
-device, FIFO, path absoluto e qualquer componente `..`; limita entradas, tamanho
-por arquivo e tamanho total; descarta ownership e cria cada destino com resolução
-sem-follow confinada ao staging. Testes cobrem cada rejeição e estouro de limite.
+device, FIFO, path absoluto e qualquer componente `..`; limita a 1.000 entradas,
+10 MiB por arquivo, 100 MiB descompactados no total e profundidade 12. Rejeita
+paths duplicados, não ASCII ou cuja normalização Unicode mude, e todo header
+PAX/GNU extra; descarta ownership e cria cada destino com resolução sem-follow
+confinada ao staging. Testes cobrem cada rejeição, colisão e estouro de limite.
+Antes de criar o wrapper, ele valida `package.json` contra a allowlist embutida:
+nome, versão igual à tag, `bin.zero`, `files`, `private: false`, `publishConfig`
+esperado, engines aprovados, ausência de dependencies, optionalDependencies e
+lifecycle scripts. O manifesto traz inventário exato de `dist`, `templates` e
+`schemas`, com paths/modos/digests; campo ou arquivo inesperado falha fechado.
 Antes do swap, cria
 `<staging>/bin/zero`, wrapper executável que chama o Node aprovado pelo instalador
 e `<staging>/package/dist/main.js`; testa o wrapper com `--version` e `--help`.
@@ -166,6 +173,14 @@ raiz escolhe a maior versão compatível, e entre raízes vence a primeira. Para
 instalação encontrada mas incompatível ou gerenciador fora da lista, para com o
 caminho encontrado e link oficial de instalação; testes cobrem múltiplas versões
 e processo gráfico sem PATH.
+
+Instalação, atualização e rollback adquirem antes do staging um lock exclusivo
+`fcntl(F_SETLK)` em `~/.zero/cli/.operation.lock` (`0600`), mantido até limpeza e
+swap. Uma segunda execução não toca staging nem `current`: mostra “operação em
+curso” e sai. O conteúdo do lock registra PID e start-time somente para diagnóstico;
+o lock do kernel é automaticamente liberado em crash, e a execução seguinte remove
+somente staging sem dono antes de continuar. Testes executam os três fluxos em
+concorrência e simulam crash/lock órfão.
 
 O guia inclui a tela do instalador “Reverter para a versão anterior” e o comando
 equivalente na forma escolhida, `zero rollback --previous` ou
@@ -191,25 +206,27 @@ verifica assinatura/checksum do tarball. Só então publica. Branch protection e
 Environment GitHub `beta-release` exigem aprovação do responsável nomeado; o
 workflow falha quando o autor/assinante/tag não pertence à allowlist.
 
-Além de `SHA256SUMS.asc`, o job emite atestação de proveniência DSSE vinculada ao
-digest do tarball, ao SHA do commit, à tag e ao ID do workflow, e a anexa como
-quarto asset `provenance.intoto.jsonl`. O gate e o instalador validam a assinatura
-DSSE com a raiz Sigstore confiável, certificado Fulcio e identidade OIDC; exigem
-issuer GitHub Actions, subject do repositório canônico, workflow path permitido,
-ref/tag exata, predicate type SLSA aprovado, digest idêntico e entrada de
-transparência Rekor com prova de inclusão válida. Certificado Fulcio pode estar
-expirado no momento da instalação somente se a prova Rekor demonstrar que estava
-válido no instante assinado; cadeia inválida, revogação aplicável, identidade fora
-da política ou prova ausente/inválida falha fechado. O DMG contém manifesto de
-política canônico, assinado pela chave de release embutida e protegido pela
-assinatura do app, com versão do DMG, repositório e exatamente um
-`job_workflow_ref` permitido. O valor é literal e comparado byte a byte como
+Além de `SHA256SUMS.asc`, o job emite e anexa `provenance.sigstore.json`, Sigstore
+Bundle JSON canônico que contém exatamente um envelope DSSE, cadeia de certificado
+Fulcio e bundle/prova de inclusão Rekor. Gate e instalador usam a biblioteca
+Sigstore na versão pinada pelo manifest para validar offline a assinatura e a
+prova. Do envelope SLSA, extraem exatamente uma vez e com igualdade byte a byte:
+issuer OIDC GitHub Actions, repository canônico, `workflow_ref`,
+`job_workflow_ref`, ref/tag, SHA do commit e subject digest SHA-256 do tarball;
+ausência, multiplicidade ou divergência de qualquer claim falha fechado. O
+certificado Fulcio pode estar expirado no momento da instalação somente se a prova
+Rekor demonstrar que estava válido no instante assinado; cadeia inválida,
+revogação aplicável ou prova ausente/inválida falha fechado. O DMG contém manifesto
+de política canônico, assinado pela chave de release embutida e protegido pela
+assinatura do app, com valores literais e únicos `repository`, `release_tag`,
+`commit_sha`, digest e `job_workflow_ref`. O último é comparado byte a byte como
 `owner/repo/.github/workflows/beta-release.yml@SHA-40`, onde SHA-40 é o commit que
 contém o workflow executado; não aceita normalização, curingas, branch, tag,
-campo ausente, duplicado ou ambíguo. A política não deriva da proveniência e só
-muda em novo instalador assinado pela identidade já confiável. Testes adulteram
-assinatura, certificado/identidade, inclusão, cada campo de política e somente o
-SHA do workflow, todos com falha fechada.
+campo ausente, duplicado ou ambíguo. O verificador extrai o SHA somente do claim
+assinado e o compara ao manifesto, nunca deriva um do outro. A política não deriva
+da proveniência e só muda em novo instalador assinado pela identidade já confiável.
+Testes adulteram assinatura, certificado/identidade, inclusão, cada claim, cada
+campo de política e somente o SHA do workflow, todos com falha fechada.
 A instalação para se fingerprint, assinatura, provenance ou checksum falhar;
 apresenta a causa e orienta contatar suporte, sem instalar o arquivo.
 
@@ -225,14 +242,22 @@ embutido e assinado fixa versão, tag e digest do tarball aceito para aquele DMG
 qualquer divergência ou asset de outra release falha fechado. Exige Node/npm já
 aprovados pelo preflight, instala somente tarball verificado com
 lifecycle scripts desabilitados e grava relatório sanitizado em falha. O gate
-produz, assina, verifica e anexa o DMG junto aos assets.
+produz, assina, verifica e anexa o DMG junto aos assets. Interface e logs locais
+persistidos usam a mesma allowlist de `zero report`: apenas código estável, etapa
+e próxima ação; nunca URL, path pessoal, stderr bruto ou segredo. Testes injetam
+segredos nos erros de download, assinatura, extrator e subprocesso.
 
-A identidade Developer ID/notarização e a chave de release ficam em cofre/HSM de
-produção acessível somente ao Environment protegido `beta-release`, após aprovação
-do responsável nomeado. Workflows de pull request, forks e branches não protegidas
-não recebem material de assinatura nem permissão de notarização; logs nunca
-imprimem credenciais. O gate testa essa separação de permissões antes da primeira
-release e em cada alteração do workflow de publicação.
+A identidade Developer ID e a chave de release nunca são exportadas: serviço de
+assinatura remoto/HSM recebe OIDC do GitHub Actions e sua política aceita somente
+o repositório canônico, tag protegida, Environment `beta-release` e o
+`job_workflow_ref` pinado no manifesto. O Environment exige dois revisores, ambos
+distintos do solicitante, e nega pull request, fork e branch; um workflow alterado
+não ganha capacidade de assinatura apenas por estar em branch protegida. Cada
+assinatura gera auditoria imutável com repositório, tag, SHA, workflow e operador.
+A credencial de notarização fica em cofre separado, com escopo exclusivo de
+notarização, rotação documentada e injetada somente nesse job sem leitura/impressão
+em logs. O gate testa essa separação de permissões antes da primeira release e em
+cada alteração do workflow de publicação.
 
 Antes de publicar, um Human Gate executa a trilha literal em Mac Apple Silicon
 sem Zero, checkout ou estado anterior, com macOS 14+, Node/npm compatíveis e
