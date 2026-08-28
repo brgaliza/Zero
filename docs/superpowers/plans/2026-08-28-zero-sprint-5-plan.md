@@ -26,26 +26,37 @@ rollback atômico.
    recuperação de staging órfão e `zero rollback --previous`; validar que a versão
    ativa só muda após wrapper, compatibilidade e swap passarem.
 
-4. **Empacotamento e extração.** Gerar somente o workspace `@brunogaliza/zero`.
-   Implementar instalação a partir de descritor validado e extrator restrito,
-   inventário/digests de pacote e proteção contra archive-bomb/TOCTOU.
+4. **Empacotamento e extração segura.** Gerar somente o workspace
+   `@brunogaliza/zero`. Baixar o tarball em staging `0700` via `O_NOFOLLOW`,
+   verificar no mesmo descritor e extrair sem npm: somente regular/diretório,
+   inventário/digests/metadata allowlisted, sem symlink/hardlink/device/FIFO/PAX,
+   traversal, duplicidade ou Unicode ambíguo, com limites de entradas/tamanho.
+   Testar TOCTOU, cada tipo proibido e archive bomb.
 
-5. **Release confiável.** Criar caller de tag e signer reutilizável pinado;
-   emitir DMG, tarball, checksum/assinatura, guia gerado e bundle Sigstore.
-   Implementar manifesto de política, trust bundle offline, validação Fulcio/Rekor
-   e autorização HSM/OIDC/broker de aprovações.
+5. **Instalador macOS.** Construir app/DMG universal; validar runtime, política,
+   chave, assinatura, checksum e bundle Sigstore antes da extração. Implementar
+   UI fechada por `code`/`stage`/`next_action_id`, sem interpolação, e testes de
+   injeção de segredo. Só depois desse item existe asset instalável.
 
-6. **Aplicativo instalador macOS.** Construir DMG universal assinado/notarizado;
-   validar política, release, tarball e runtime antes de extração. Exibir apenas
-   mensagens sanitizadas e oferecer instalação, PATH e rollback.
+6. **Política e cerimônia de confiança.** Antes de qualquer release, criar
+   `release-policy.v1.json` JCS concreto e compilado no app, trust bundle Fulcio/
+   Rekor, chave pública/rotação e inventário. Provisionar HSM remoto por OIDC,
+   Developer ID/notarização, broker JWS de dois aprovadores, GitHub App read-only
+   e Environment; testar negação para PR/fork/claim/review inválidos.
 
 7. **Guia e suporte.** Gerar `GUIA-BETA-pt-BR.md` sem placeholders, com os dois
    ramos de PATH, instalação manual de Node/Docker, verificação do app, criação,
    validação, shutdown, report e rollback.
 
-8. **Gates.** Automatizar checks, package/release fixtures e adulterações de
-   supply-chain; executar Human Gate em Mac limpo com pré-requisitos e em snapshot
-   sem Node/npm/Docker. Qualquer falha bloqueia a publicação.
+8. **Pipeline de release.** Só agora criar caller por tag → signer reutilizável
+   SHA-pinado, draft de release, tarball/DMG/guia/checksum/assinatura/Sigstore e
+   validação do asset baixado antes de publicar. Cobrir DSSE/Fulcio/Rekor offline,
+   claims/OIDs, checkpoint e adulteração de todos os campos.
+
+9. **Gates.** Automatizar checks e fixtures; executar Human Gate em Mac limpo com
+   Node 24 e 26/npm11, PATH aceito/recusado/fallback e rollback; e snapshot sem
+   Node/npm/Docker/gerenciadores, comprovando ausência e seguindo links/telas.
+   Ambos validam asset do draft; qualquer falha bloqueia publicação.
 
 ## Aceite da Sprint
 
@@ -53,8 +64,13 @@ rollback atômico.
   `essential`.
 - Todo asset instalado possui cadeia de confiança verificada e falha fechada.
 - Instalação, atualização e rollback preservam o comando anterior em falhas e não
-  tocam projetos, containers ou volumes.
+  tocam projetos, containers ou volumes; lock, metadata/ref anterior e staging
+  órfão resistem a download/staging/swap/shim/crash/concorrência.
 - Saídas persistidas e de interface não expõem segredo, path pessoal ou erro bruto.
+- Apenas Node 24/26 e npm 11 avançam; Node 23/27+, npm 10/12+ falham antes de
+  instalar/criar/operar. Report é `0600`, diretórios `0700` e schema allowlisted.
+- `new` imprime blocos literais de criação e `cd && up`; validação offline GPG,
+  DSSE/Fulcio/Rekor/checkpoint e UI fechada passam nas fixtures adversariais.
 - Gates automatizados e os dois Human Gates passam antes da release.
 
 ## Corte de escopo
