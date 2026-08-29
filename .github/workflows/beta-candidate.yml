@@ -1,0 +1,37 @@
+name: beta-candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Tag planejada, no formato vX.Y.Z
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    environment: beta-candidate
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 26
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm run release:assets -- "${{ inputs.version }}" dist/release
+      - run: >-
+          npm run generate:beta-guide -- --version "${{ inputs.version }}"
+          --release-url "https://github.com/${{ github.repository }}/releases"
+          --sha256 "$(awk 'NR==1 {print $1}' dist/release/SHA256SUMS)"
+          --bootstrap-sha256 "$(awk 'NR==2 {print $1}' dist/release/SHA256SUMS)"
+          --output dist/release/GUIA-BETA-pt-BR.md
+      - run: npm run release:manifest -- "${{ inputs.version }}" dist/release
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: beta-candidate-${{ inputs.version }}
+          path: dist/release
