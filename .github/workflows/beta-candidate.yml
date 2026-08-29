@@ -31,7 +31,7 @@ jobs:
           --bootstrap-sha256 "$(awk 'NR==2 {print $1}' dist/release/SHA256SUMS)"
           --output dist/release/GUIA-BETA-pt-BR.md
       - run: npm run release:manifest -- "${{ inputs.version }}" dist/release
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: beta-candidate-${{ inputs.version }}
           path: dist/release
