@@ -27,21 +27,30 @@ describe("beta release assets", () => {
     temporaryDirectories.push(directory);
     const version = "v0.1.0";
     const tarball = `zero-${version}.tgz`;
-    const dmg = `Zero-Beta-Installer-${version}.dmg`;
+    const bootstrap = `zero-bootstrap-${version}.cjs`;
+    const sums = `${digest("tarball")}  ${tarball}\n${digest("bootstrap")}  ${bootstrap}\n`;
+    const guide = `# Zero Beta ${version}\n`;
     await Promise.all([
       writeFile(join(directory, tarball), "tarball"),
-      writeFile(join(directory, dmg), "dmg"),
-      writeFile(
-        join(directory, "SHA256SUMS"),
-        `${digest("tarball")}  ${tarball}\n${digest("dmg")}  ${dmg}\n`,
-      ),
-      writeFile(
-        join(directory, "GUIA-BETA-pt-BR.md"),
-        `# Zero Beta ${version}\nTeamIdentifier=ABCDE12345\n`,
-      ),
+      writeFile(join(directory, bootstrap), "bootstrap"),
+      writeFile(join(directory, "SHA256SUMS"), sums),
+      writeFile(join(directory, "GUIA-BETA-pt-BR.md"), guide),
     ]);
+    await writeFile(
+      join(directory, "release-manifest.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        version,
+        assets: {
+          [tarball]: digest("tarball"),
+          [bootstrap]: digest("bootstrap"),
+          SHA256SUMS: digest(sums),
+          "GUIA-BETA-pt-BR.md": digest(guide),
+        },
+      }),
+    );
 
-    const result = spawnSync(process.execPath, [verifier, version, directory, "ABCDE12345"], {
+    const result = spawnSync(process.execPath, [verifier, version, directory], {
       encoding: "utf8",
     });
 
